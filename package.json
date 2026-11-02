@@ -1,0 +1,11 @@
+{
+  "name": "oysterpilot",
+  "private": true,
+  "scripts": {
+    "dev": "pnpm -r --parallel --stream dev",
+    "build": "pnpm -C apps/web build",
+    "typecheck": "pnpm -r typecheck",
+    "deploy": "pnpm build && pnpm -C apps/api deploy"
+  },
+  "packageManager": "pnpm@12.16.1"
+}

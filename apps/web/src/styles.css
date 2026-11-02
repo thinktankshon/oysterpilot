@@ -1,0 +1,99 @@
+:root {
+  --bg: #f4f7f9;
+  --fg: #10212b;
+  --muted: #5b6b75;
+  --card: #ffffff;
+  --line: #d6dee4;
+  --brand: #0b3d5c;
+  --brand-2: #1f7fb0;
+  --rec: #d7263d;
+  --ok: #1c8a4c;
+  --warn: #b7791f;
+  font-size: 18px; /* スマホで 18px 以上 */
+}
+* { box-sizing: border-box; }
+html, body, #root { height: 100%; margin: 0; }
+body {
+  background: var(--bg);
+  color: var(--fg);
+  font-family: -apple-system, BlinkMacSystemFont, "Hiragino Sans", "Noto Sans JP", sans-serif;
+  line-height: 1.5;
+  -webkit-text-size-adjust: 100%;
+}
+.app { min-height: 100%; display: flex; flex-direction: column; }
+.nav {
+  display: grid; grid-template-columns: repeat(3, 1fr);
+  background: var(--brand); color: #fff;
+  padding-top: env(safe-area-inset-top);
+}
+.nav-link {
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  min-height: 56px; padding: 8px 4px; color: #cfe3ef; text-decoration: none;
+  border-bottom: 4px solid transparent;
+}
+.nav-link.active { color: #fff; border-bottom-color: #ffd166; }
+.nav-label { font-weight: 700; font-size: 0.9rem; white-space: nowrap; }
+.nav-sub { font-size: 0.72rem; }
+
+.main {
+  flex: 1; width: 100%; max-width: 640px; margin: 0 auto;
+  padding: 16px 16px calc(24px + env(safe-area-inset-bottom));
+  display: flex; flex-direction: column;
+}
+.title { font-size: 1.5rem; margin: 8px 0 4px; }
+.lead { margin: 0 0 16px; color: var(--muted); }
+.muted { color: var(--muted); }
+.timer { font-variant-numeric: tabular-nums; color: var(--rec); font-size: 1.2rem; margin-left: 8px; }
+
+.card {
+  background: var(--card); border: 1px solid var(--line); border-radius: 14px;
+  padding: 14px 16px; margin-bottom: 16px;
+}
+.card-title { font-size: 1rem; margin: 0 0 8px; color: var(--muted); font-weight: 600; }
+.record-list { list-style: none; margin: 0; padding: 0; }
+.record-row {
+  display: grid; grid-template-columns: auto 1fr auto; grid-template-areas: "date loc work" "nums nums nums";
+  gap: 2px 10px; padding: 10px 0; border-top: 1px solid var(--line);
+}
+.record-row:first-child { border-top: 0; }
+.record-date { grid-area: date; color: var(--muted); font-variant-numeric: tabular-nums; }
+.record-loc { grid-area: loc; font-weight: 600; }
+.record-work { grid-area: work; color: var(--brand-2); font-weight: 700; }
+.record-nums { grid-area: nums; color: var(--muted); font-size: 0.95rem; }
+
+.notice { background: #fff6dc; border: 1px solid #f1d58a; border-radius: 10px; padding: 10px 12px; }
+.error { color: var(--rec); font-weight: 600; }
+
+.transcript {
+  flex: 1; min-height: 160px; width: 100%;
+  background: var(--card); border: 1px solid var(--line); border-radius: 14px;
+  padding: 14px 16px; font-size: 1.15rem; line-height: 1.6;
+  white-space: pre-wrap; word-break: break-word;
+}
+.transcript.live { overflow-y: auto; max-height: 50vh; }
+.transcript.edit { font-family: inherit; color: var(--fg); resize: vertical; }
+.interim { color: var(--muted); }
+
+/* 録音ボタン：画面下部・直径 120px 以上 */
+.rec-area { margin-top: auto; display: flex; justify-content: center; padding: 24px 0 8px; }
+.rec-button {
+  width: 136px; height: 136px; border-radius: 50%; border: 0;
+  background: var(--rec); color: #fff; font-size: 1.25rem; font-weight: 700;
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px;
+  box-shadow: 0 8px 24px rgba(215, 38, 61, 0.35);
+  -webkit-tap-highlight-color: transparent; touch-action: manipulation;
+}
+.rec-button:active { transform: scale(0.96); }
+.rec-button.stop { background: var(--brand); box-shadow: 0 8px 24px rgba(11, 61, 92, 0.35); }
+.rec-dot { width: 22px; height: 22px; border-radius: 50%; background: #fff; }
+.stop-square { width: 22px; height: 22px; border-radius: 4px; background: #fff; }
+
+.actions { display: flex; flex-direction: column; gap: 12px; margin-top: 16px; }
+.btn {
+  min-height: 56px; border-radius: 14px; border: 2px solid var(--brand);
+  background: #fff; color: var(--brand); font-size: 1.1rem; font-weight: 700;
+  -webkit-tap-highlight-color: transparent; touch-action: manipulation;
+}
+.btn.primary { background: var(--brand); color: #fff; }
+.btn.ghost { border-color: var(--line); color: var(--muted); }
+.btn:disabled { opacity: 0.45; }

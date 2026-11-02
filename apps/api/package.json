@@ -1,0 +1,23 @@
+{
+  "name": "@oysterpilot/api",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "wrangler dev --port 8787",
+    "deploy": "wrangler deploy",
+    "typecheck": "tsc --noEmit",
+    "d1:create": "wrangler d1 create oysterpilot",
+    "d1:migrate:local": "wrangler d1 migrations apply oysterpilot --local",
+    "d1:migrate": "wrangler d1 migrations apply oysterpilot --remote",
+    "seed:local": "node ../../scripts/seed.ts ../../data/seed_records.csv > .seed.sql && wrangler d1 execute oysterpilot --local --file .seed.sql",
+    "seed": "node ../../scripts/seed.ts ../../data/seed_records.csv > .seed.sql && wrangler d1 execute oysterpilot --remote --file .seed.sql"
+  },
+  "dependencies": {
+    "hono": "^4.13.16"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "5.20261031.1",
+    "typescript": "^5.9.3",
+    "wrangler": "4.156.0"
+  }
+}

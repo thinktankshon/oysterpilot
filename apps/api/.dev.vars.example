@@ -1,0 +1,4 @@
+# ローカル開発用。コピーして .dev.vars にする（.dev.vars は gitignore 済み）
+ANTHROPIC_API_KEY=sk-ant-...
+# 共有パスワード。空にするとローカルでは認証なしで動く
+DEMO_KEY=
