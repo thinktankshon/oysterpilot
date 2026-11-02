@@ -1,0 +1,92 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1920" height="1080" viewBox="0 0 1920 1080" font-family="Hiragino Sans, Noto Sans JP, sans-serif">
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="9" markerHeight="9" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#5b6b75"/>
+    </marker>
+    <marker id="arrow-blue" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="9" markerHeight="9" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#1f7fb0"/>
+    </marker>
+  </defs>
+  <rect width="1920" height="1080" fill="#f4f7f9"/>
+
+  <!-- タイトル -->
+  <text x="960" y="92" text-anchor="middle" font-size="54" font-weight="800" fill="#10212b">3 つは 1 つの記録でつながる</text>
+  <text x="960" y="146" text-anchor="middle" font-size="30" fill="#5b6b75">診る → 記録する → 学ぶ を、1 人で回せる</text>
+
+  <!-- Oyscan -->
+  <g>
+    <rect x="110" y="250" width="480" height="300" rx="28" fill="#ffffff" stroke="#d6dee4" stroke-width="3"/>
+    <rect x="110" y="250" width="480" height="92" rx="28" fill="#0b3d5c"/>
+    <rect x="110" y="300" width="480" height="42" fill="#0b3d5c"/>
+    <text x="350" y="292" text-anchor="middle" font-size="40" font-weight="800" fill="#ffffff">Oyscan</text>
+    <text x="350" y="330" text-anchor="middle" font-size="24" fill="#cfe3ef">海を診る ／ PC</text>
+    <text x="350" y="392" text-anchor="middle" font-size="26" fill="#10212b">日本の海をクリック</text>
+    <text x="350" y="434" text-anchor="middle" font-size="26" fill="#10212b">斃死リスク × 成長スピード</text>
+    <text x="350" y="476" text-anchor="middle" font-size="22" fill="#5b6b75">気象庁の水温・雨量（80 海域）</text>
+    <text x="350" y="520" text-anchor="middle" font-size="22" fill="#1f7fb0">Claude：集計値から所見を書く</text>
+  </g>
+
+  <!-- AI Oysterman -->
+  <g>
+    <rect x="720" y="250" width="480" height="300" rx="28" fill="#ffffff" stroke="#d6dee4" stroke-width="3"/>
+    <rect x="720" y="250" width="480" height="92" rx="28" fill="#1f7fb0"/>
+    <rect x="720" y="300" width="480" height="42" fill="#1f7fb0"/>
+    <text x="960" y="292" text-anchor="middle" font-size="40" font-weight="800" fill="#ffffff">AI Oysterman</text>
+    <text x="960" y="330" text-anchor="middle" font-size="24" fill="#e6f3fa">海から学ぶ ／ スマホ・PC</text>
+    <text x="960" y="392" text-anchor="middle" font-size="26" fill="#10212b">作業の合間に、先輩に聞くように</text>
+    <text x="960" y="434" text-anchor="middle" font-size="26" fill="#10212b">ルール表 × 現場 × 公開知見</text>
+    <text x="960" y="476" text-anchor="middle" font-size="22" fill="#5b6b75">数字の判断はコード、範囲外は専門家へ</text>
+    <text x="960" y="520" text-anchor="middle" font-size="22" fill="#1f7fb0">Claude：伴走者として言葉にする</text>
+  </g>
+
+  <!-- Voysy -->
+  <g>
+    <rect x="1330" y="250" width="480" height="300" rx="28" fill="#ffffff" stroke="#d6dee4" stroke-width="3"/>
+    <rect x="1330" y="250" width="480" height="92" rx="28" fill="#d7263d"/>
+    <rect x="1330" y="300" width="480" height="42" fill="#d7263d"/>
+    <text x="1570" y="292" text-anchor="middle" font-size="40" font-weight="800" fill="#ffffff">Voysy</text>
+    <text x="1570" y="330" text-anchor="middle" font-size="24" fill="#ffe3e7">海で記録する ／ iPhone</text>
+    <text x="1570" y="392" text-anchor="middle" font-size="26" fill="#10212b">「作業開始」1 回、あとは喋るだけ</text>
+    <text x="1570" y="434" text-anchor="middle" font-size="26" fill="#10212b">「次のロット」で区切り、陸で確認</text>
+    <text x="1570" y="476" text-anchor="middle" font-size="22" fill="#5b6b75">選別の複数サイズ帯、ロット R8-K◯</text>
+    <text x="1570" y="520" text-anchor="middle" font-size="22" fill="#1f7fb0">Claude：発話を項目に整理し、聞き返す</text>
+  </g>
+
+  <!-- 横の矢印 -->
+  <line x1="590" y1="400" x2="718" y2="400" stroke="#5b6b75" stroke-width="5" marker-end="url(#arrow)"/>
+  <text x="654" y="372" text-anchor="middle" font-size="19" fill="#5b6b75">診断を引き継ぐ</text>
+  <line x1="1200" y1="400" x2="1328" y2="400" stroke="#5b6b75" stroke-width="5" marker-end="url(#arrow)"/>
+  <text x="1264" y="372" text-anchor="middle" font-size="19" fill="#5b6b75">作業予約</text>
+  <text x="1264" y="432" text-anchor="middle" font-size="17" fill="#5b6b75">今日の予定へ</text>
+
+  <!-- 台帳 -->
+  <g>
+    <rect x="610" y="720" width="700" height="150" rx="24" fill="#ffffff" stroke="#1c8a4c" stroke-width="4"/>
+    <text x="960" y="778" text-anchor="middle" font-size="34" font-weight="800" fill="#1c8a4c">記録台帳（Cloudflare D1）</text>
+    <text x="960" y="822" text-anchor="middle" font-size="22" fill="#5b6b75">作業・ロット・サイズ帯・入数・斃死・かご数・予約・診断</text>
+    <text x="960" y="854" text-anchor="middle" font-size="20" fill="#5b6b75">合成サンプル＋公開データのみ。API キーは Worker の中だけ</text>
+  </g>
+
+  <!-- Voysy → 台帳 -->
+  <path d="M1570,550 L1570,640 L1312,640 L1312,718" fill="none" stroke="#d7263d" stroke-width="5" marker-end="url(#arrow)"/>
+  <text x="1450" y="628" text-anchor="middle" font-size="22" fill="#d7263d">区切りごとの発話を保存</text>
+  <!-- 台帳 → AI Oysterman -->
+  <path d="M960,718 L960,552" fill="none" stroke="#1f7fb0" stroke-width="5" marker-end="url(#arrow-blue)"/>
+  <text x="1000" y="640" font-size="22" fill="#1f7fb0">記録・予約・水温を読む</text>
+  <!-- Oyscan → 台帳（診断の保存） -->
+  <path d="M350,550 L350,640 L608,640 L608,718" fill="none" stroke="#0b3d5c" stroke-width="5" marker-end="url(#arrow)"/>
+  <text x="470" y="628" text-anchor="middle" font-size="22" fill="#0b3d5c">診断を保存</text>
+
+  <!-- 下の帯：ルールと知識 -->
+  <g>
+    <rect x="110" y="920" width="820" height="110" rx="22" fill="#eef4f8" stroke="#d6dee4" stroke-width="3"/>
+    <text x="520" y="964" text-anchor="middle" font-size="28" font-weight="700" fill="#0b3d5c">ルール表 config/rules.yaml（R1〜R10）</text>
+    <text x="520" y="1002" text-anchor="middle" font-size="21" fill="#5b6b75">閾値はコードに埋め込まない。人が読めて直せる</text>
+    <rect x="990" y="920" width="820" height="110" rx="22" fill="#eef4f8" stroke="#d6dee4" stroke-width="3"/>
+    <text x="1400" y="964" text-anchor="middle" font-size="28" font-weight="700" fill="#0b3d5c">現場の見解 ＋ 公開知見 knowledge/</text>
+    <text x="1400" y="1002" text-anchor="middle" font-size="21" fill="#5b6b75">聞き取り 30 問、文献 3 本（出典つき）、想定質問 100</text>
+  </g>
+
+  <!-- 出典 -->
+  <text x="960" y="1062" text-anchor="middle" font-size="18" fill="#8a9ba5">出典：気象庁「日本沿岸域の海面水温情報」「過去の気象データ」／地図：国土地理院 地理院タイル／株式会社リブル</text>
+</svg>
