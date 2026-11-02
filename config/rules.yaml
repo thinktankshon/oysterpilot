@@ -1,0 +1,98 @@
+# OysterPilot ルール表（AI Oysterman / Oyscan 共通）
+# 閾値はここで管理し、コードにハードコードしない。
+# いずれも「厳守」ではなく助言の目安。数理モデルの集計を参考にした丸めた値で、モデル本体・係数は含まない。
+
+meta:
+  version: 2026-11-02
+  water_source: 気象庁「日本沿岸域の海面水温情報」海域 623 周防灘（海域平均・実績値）
+  tone:
+    - 断定しない。「増えやすい時期です」「目安です」まで
+    - 「死にます」「必ず」「予測」は使わない
+    - 高水温と斃死は相関として語る
+
+thresholds:
+  hot_temp_c: 28          # 高水温の基準
+  hot_days: 7             # 連続日数
+  cold_temp_c: 10         # 低水温の基準
+  cold_days: 7
+  growth_band_c: [15, 25] # 成長しやすい水温帯
+  growth_check_days: 15   # 成長期に「見てみましょう」を出す経過日数
+  sort_interval_days: 30  # 通常の選別目安（2潮）
+  sort_interval_cold_multiplier: 1.5   # 低水温期は 30 → 45 日
+  basket_kg_normal: 2.0   # 1かご総重量の通常目安
+  basket_kg_thin: 1.5     # 薄くするとき（高水温期・成長期・身質不良）
+  basket_kg_dense: 2.5    # 揺れを抑えたいとき
+
+rules:
+  - id: R1_hot
+    when: env.hot_streak >= thresholds.hot_days
+    kind: notice          # 相談内容に関係なく一言添える
+    say: 高水温が続いています。作業時間を短くして、貝に負担をかけないようにしましょう。
+    note: 作業を止めるのではなく「短く・負担をかけずに」。R7 と同時なら「選別しましょう。高水温なので手早く」。
+    effects:
+      basket_kg_target: thin
+
+  - id: R2_cold
+    when: env.cold_streak >= thresholds.cold_days
+    kind: notice
+    say: 水温が低く、生育が鈍る時期です。選別の間隔は少し空けて様子を見ましょう。
+    effects:
+      sort_interval_multiplier: 1.5
+
+  - id: R3_growth_check
+    when: env.in_growth_band and lot.days_since_last_sort >= thresholds.growth_check_days and lot.days_since_last_sort < effective_sort_interval
+    kind: notice
+    say: 適水温で、かなり成長しているかもしれません。殻の伸びや詰まり具合を注意して見てみましょう。
+    note: 選別は必須にしない。R7 が成立するときは R7 を優先し、R3 は出さない。
+    effects:
+      basket_kg_target: thin
+
+  - id: R4_basket_target
+    when: topic in [選別, 分殖, 入数, 身質]   # 選別・入数の話題が出たときの助言
+    kind: advice
+    say: 次の選別では、1かご {basket_kg_target}kg を目安に（{avg_weight_g}g なら約 {count_target} 個）。厳守ではなく目安です。
+    note: >
+      通常 2.0kg。R1/R3 成立中、または身質が悪いと言われたら 1.5kg。
+      揺れを抑えたい（殻がツルツル）ときは 2.5kg。超えたことを警告しない。
+
+  - id: R5_shell_long
+    when: user says 殻が伸びている / 刃先が伸びた / ひょろ長い
+    kind: advice
+    ask_first: 上段だけですか？ 下段も同じ様子ですか？
+    say: 刃先が伸びる＝揺れが足りていない合図です。揺れの強い場所に移すか、次の選別では入数を薄め（1.5kg目安）にしましょう。
+    effects:
+      basket_kg_target: thin
+
+  - id: R6_shell_smooth
+    when: user says 殻がツルツル / 削られすぎ / 丸くなりすぎ
+    kind: advice
+    say: 揺れが強すぎる合図です。静穏な場所に移すか、入数を上げて（2.5kg目安）揺れを抑えましょう。
+    effects:
+      basket_kg_target: dense
+
+  - id: R7_sort_due
+    when: lot.days_since_last_sort > effective_sort_interval
+    kind: recommend
+    say: 前回の選別から {days} 日で、目安（{effective_sort_interval}日）を過ぎています。選別しましょう。
+    note: effective_sort_interval = sort_interval_days × (R2 成立なら 1.5)。R1 同時なら「高水温なので手早く」を添える。
+
+out_of_scope:
+  say: この相談はルールの範囲外なので、先輩に聞く項目として整理します。
+  action: show_button_consult_expert    # [専門家に相談する]（リブル問い合わせページへ）
+  triggers:
+    - ルールに該当しない相談（病気・衛生・販売・法規など）
+    - ユーザーが「分からない」「解決しない」と言ったとき
+
+oyscan:
+  # 直近5年（データのある範囲）で集計
+  hot_risk:
+    metric: 28℃以上が7日以上続いた期間があった年数（5年中）
+    levels: {low: 0, mid: [1, 2], high: 3}   # 0年=低 / 1-2年=中 / 3年以上=高
+  cold_period:
+    metric: 10℃未満の日数の年平均
+    label: 生育が鈍る期間：年間約{days}日
+  growth_period:
+    metric: 15〜25℃の日数の年平均
+    label: 成長しやすい期間：年間約{days}日
+  recent:
+    metric: 直近7日平均と、5年統計の同日 平均・最高・最低
