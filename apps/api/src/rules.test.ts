@@ -7,7 +7,7 @@ import { detectTopic, evaluateRules, type RulesConfig } from './rules.ts';
 
 const cfg = parse(readFileSync(new URL('../../../config/rules.yaml', import.meta.url), 'utf-8')) as RulesConfig;
 const growth = { hot_streak: 0, cold_streak: 0, in_growth_band: true };
-const noTopic = { sort_related: false, shell_long: false, shell_smooth: false, poor_meat: false, out_of_scope: false };
+const noTopic = { sort_related: false, shell_long: false, shell_smooth: false, poor_meat: false, storm: false, out_of_scope: false };
 
 test('デモ会話：成長期・19日・36g×45個・刃先が伸びた → R3 と R5、1.5kg 目安で約42個', () => {
   const topic = detectTopic('3番ラインの貝、刃先がひょろっと伸びてきた。このままでいい？');
@@ -30,7 +30,7 @@ test('R3 は 15 日未満では出ない。成長帯の外でも出ない', () =
 test('R7：30 日超で選別。R3 は同時に出さない。R4 が添えられる', () => {
   const ev = evaluateRules(cfg, growth, { days_since_last_sort: 31, avg_weight_g: 40, count_per_basket: 50 }, noTopic);
   assert.deepEqual(ev.fired_ids.sort(), ['R4_basket_target', 'R7_sort_due']);
-  assert.match(ev.fired[0].say, /31 日で、目安（30日）/);
+  assert.match(ev.fired[0].say, /31 日で、貝をチェックする目安（30日）/);
   assert.equal(ev.basket_kg_target, 2.0); // R7 だけなら目安は通常の 2.0
 });
 
@@ -64,4 +64,30 @@ test('範囲外：ノロウイルス・分からない', () => {
   assert.equal(detectTopic('ノロウイルスは大丈夫？').out_of_scope, true);
   assert.equal(detectTopic('よく分からない').out_of_scope, true);
   assert.equal(detectTopic('3番の選別いつやる？').out_of_scope, false);
+});
+
+test('R8：斃死 20% 以上で注意。30g 以上なら補足。20% 未満は出ない', () => {
+  // 36g・45個×6かご=270、斃死 70 → 70/340 = 20.6%
+  const a = evaluateRules(cfg, growth, { days_since_last_sort: 13, avg_weight_g: 36, count_per_basket: 45, basket_count: 6, mortality_recent: 70 }, noTopic);
+  assert.ok(a.fired_ids.includes('R8_mortality_notice'));
+  assert.match(a.fired[0].say, /21%/);
+  assert.ok(a.hints.some((h) => h.includes('30g')));
+  const b = evaluateRules(cfg, growth, { days_since_last_sort: 13, avg_weight_g: 36, count_per_basket: 45, basket_count: 6, mortality_recent: 8 }, noTopic);
+  assert.ok(!b.fired_ids.includes('R8_mortality_notice'));
+});
+
+test('R9：直近7日平均 26℃ 以上、または hot で「1日で完結」を添える', () => {
+  const warm = { ...growth, mean7: 26.5, season: 'growth' as const };
+  assert.ok(evaluateRules(cfg, warm, { days_since_last_sort: 5, avg_weight_g: 30, count_per_basket: 50 }, noTopic).fired_ids.includes('R9_summer_work'));
+  const cool = { ...growth, mean7: 23, season: 'growth' as const };
+  assert.ok(!evaluateRules(cfg, cool, { days_since_last_sort: 5, avg_weight_g: 30, count_per_basket: 50 }, noTopic).fired_ids.includes('R9_summer_work'));
+});
+
+test('R10：台風の話題で前後の手順を出す。入数は容量 1/4 の言い方も返す', () => {
+  const topic = detectTopic('台風が来るけど何かしておくことある？');
+  assert.equal(topic.storm, true);
+  const ev = evaluateRules(cfg, growth, { days_since_last_sort: 5, avg_weight_g: 30, count_per_basket: 50 }, topic);
+  assert.ok(ev.fired_ids.includes('R10_storm'));
+  assert.match(ev.basket_fill_hint ?? '', /25%/);
+  assert.match(ev.basket_fill_hint ?? '', /15Lで約1.5kg/);
 });

@@ -3,7 +3,7 @@
 # いずれも「厳守」ではなく助言の目安。数理モデルの集計を参考にした丸めた値で、モデル本体・係数は含まない。
 
 meta:
-  version: 2026-11-02
+  version: 2026-11-02b   # 高畑聞き取り（knowledge/reblue_views.md）を反映
   water_source: 気象庁「日本沿岸域の海面水温情報」海域 623 周防灘（海域平均・実績値）
   tone:
     - 断定しない。「増えやすい時期です」「目安です」まで
@@ -19,9 +19,14 @@ thresholds:
   growth_check_days: 15   # 成長期に「見てみましょう」を出す経過日数
   sort_interval_days: 30  # 通常の選別目安（2潮）
   sort_interval_cold_multiplier: 1.5   # 低水温期は 30 → 45 日
-  basket_kg_normal: 2.0   # 1かご総重量の通常目安
-  basket_kg_thin: 1.5     # 薄くするとき（高水温期・成長期・身質不良）
+  basket_kg_normal: 2.0   # 1かご総重量の通常目安（25L かごで容量の 1/4 相当）
+  basket_kg_thin: 1.5     # 薄くするとき（高水温期・成長期・身質不良。15L かごの 1/4 相当）
   basket_kg_dense: 2.5    # 揺れを抑えたいとき
+  basket_fill_ratio: 0.25 # リブルの目安は「かご容量の 1/4」。容量が分かるときはこちらで言う（15L→約1.5kg、25L→約2.0kg）
+  basket_volumes_l: [15, 25]
+  mortality_notice_ratio: 0.2     # 前回選別から約30日で斃死 20% 以上なら「多め」
+  mortality_notice_weight_g: 30   # 30g 以上の斃死 20% は影響が大きい
+  summer_work_mean7_c: 26         # 直近7日平均がこれ以上なら「陸上作業は短く・1日で完結」を添える
 
 rules:
   - id: R1_hot
@@ -73,8 +78,31 @@ rules:
   - id: R7_sort_due
     when: lot.days_since_last_sort > effective_sort_interval
     kind: recommend
-    say: 前回の選別から {days} 日で、目安（{effective_sort_interval}日）を過ぎています。選別しましょう。
-    note: effective_sort_interval = sort_interval_days × (R2 成立なら 1.5)。R1 同時なら「高水温なので手早く」を添える。
+    say: 前回の選別から {days} 日で、貝をチェックする目安（{effective_sort_interval}日）を過ぎています。殻の形とかごの詰まり具合を見て、必要なら選別しましょう。
+    note: >
+      effective_sort_interval = sort_interval_days × (R2 成立なら 1.5)。R1 同時なら「高水温なので手早く」を添える。
+      30 日は「死ぬ日数」ではなく「貝をチェックする目安」（リブル）。遅れると容量過多で殻が曲がり、過密で餌の食い合いが起きやすい。
+
+  - id: R8_mortality_notice
+    when: lot.mortality_ratio >= thresholds.mortality_notice_ratio   # 直近の選別で数えた斃死 ÷（残った個数＋斃死）
+    kind: notice
+    say: 前回の選別で斃死が {mortality_pct}% と多めでした。原因は一つに決めず、密度・水温・雨量・場所・時期・青潮や赤潮の順に見てみましょう。
+    note: >
+      30g 以上の貝で 20% 以上なら「小さいサイズの同じ率より影響が大きい」と添える（リブル）。原因は断定しない。
+    effects:
+      basket_kg_target: thin
+
+  - id: R9_summer_work
+    when: env.mean7 >= thresholds.summer_work_mean7_c or env.season == hot
+    kind: notice
+    say: 暑い時期は陸上の作業を短く、陸揚げ・選別・かご詰め・沖出しを 1 日で完結させましょう。次の日に持ち越さないのが現場の基本です。
+    note: 気温 30℃ を超える日は陸上選別の時間をできる限り減らす。空調のない部屋での放置は避ける（リブル）。
+
+  - id: R10_storm
+    when: user says 台風 / 大雨 / 時化 / 低気圧
+    kind: advice
+    say: 台風や大雨の前はラックなら下段に下げておきましょう。通過後はまず塩分の下がり具合と貝の色合いを見て、直後の選別は避けましょう。
+    note: 赤潮・青潮は県の水産試験場など水産行政の情報を確認。赤潮には牡蠣にとって良いものもあるので種類を見る（リブル）。
 
 out_of_scope:
   say: この相談はルールの範囲外なので、先輩に聞く項目として整理します。

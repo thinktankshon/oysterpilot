@@ -2,10 +2,13 @@ import { Hono } from 'hono';
 import Anthropic from '@anthropic-ai/sdk';
 import systemTemplate from '../../../prompts/oysterman_system.md';
 import glossaryYaml from '../../../config/glossary.yaml';
+import digestMd from '../../../knowledge/digest.md';
+import reblueViewsMd from '../../../knowledge/reblue_views.md';
+import appHelpMd from '../../../knowledge/app_help.md';
 import { getRulesConfig, getRulesYaml } from './rulesConfig';
 import { computeEnv, getSuonada } from './env';
 import { detectTopic, evaluateRules, type Evaluation, type Topic } from './rules';
-import { getAllLotSummaries, locationLabel, parseLocation, todayJst, type LotSummary } from './lot';
+import { getAllLotSummaries, locationLabel, resolveFocus, todayJst, type LotSummary } from './lot';
 import type { Bindings, ReservationRow } from './types';
 
 const CHAT_MODEL = 'claude-sonnet-5-5';
@@ -50,8 +53,8 @@ oysterman.post('/chat', async (c) => {
   const lastUser = messages[messages.length - 1].content;
   const topic: Topic = { ...detectTopic(userText), out_of_scope: detectTopic(lastUser).out_of_scope };
 
-  // 発話から場所を拾う（最新の発話を優先、無ければ会話全体）
-  const focus = parseLocation(lastUser) ?? parseLocation(userText);
+  // 会話全体から場所を解決する（「3番の貝…」→「上段だけ」で 3番・上段）
+  const focus = resolveFocus(messages.filter((m) => m.role === 'user').map((m) => m.content));
   const focusLots = focus
     ? lots.filter((l) => l.location_line === focus.line && (focus.tier == null || l.location_tier === focus.tier))
     : [];
@@ -77,6 +80,8 @@ oysterman.post('/chat', async (c) => {
       hints: ev.hints,
       basket_kg_target: ev.basket_kg_target,
       count_target: ev.count_target,
+      basket_fill_hint: ev.basket_fill_hint,
+      mortality_ratio: ev.mortality_ratio,
       effective_sort_interval_days: ev.effective_sort_interval,
     })),
     // 「今日の作業」の優先順位：予約 → 選別目安超え（R7）→ 成長期で見てみましょう（R3）
@@ -98,6 +103,9 @@ oysterman.post('/chat', async (c) => {
     fired_rules_json: JSON.stringify(firedForPrompt),
     glossary_yaml: glossaryYaml,
     rules_yaml: getRulesYaml(),
+    reblue_views: reblueViewsMd,
+    digest: digestMd,
+    app_help: appHelpMd,
     scan_report: scanReport,
   });
 
@@ -107,7 +115,7 @@ oysterman.post('/chat', async (c) => {
     {
       name: 'propose_reservation',
       description:
-        'ユーザーが「予約して」「記録に入れといて」「明日やる」など作業の実施を決めたときに、Voysy の作業予約として返す。提案しただけの段階では呼ばない。場所が特定できないときは呼ばずに、どのラインか1つ質問する。',
+        'ユーザーが「予約して」「記録に入れといて」「明日やる」など作業の実施を決めたときに、Voysy の作業予約として返す。提案しただけの段階では呼ばない。場所は【相談対象の候補】の matched が 1 つならそれを使う（会話で「上段だけ」と答えてもらった段を含む）。matched が複数で、提案が特定の段に限られるときだけ、どの段か 1 つ質問する。',
       input_schema: {
         type: 'object',
         properties: {
@@ -140,7 +148,7 @@ oysterman.post('/chat', async (c) => {
   let reservation: Reservation | null = null;
   let outOfScope = topic.out_of_scope;
   let outOfScopeSummary: string | null = null;
-  let usage: { input: number; output: number } | null = null;
+  let usage: { input: number; output: number; cache_read: number; cache_write: number } | null = null;
   try {
     let res = await callClaude(client, system, messages, tools);
     let collected = collect(res);
@@ -159,7 +167,12 @@ oysterman.post('/chat', async (c) => {
       outOfScope = true;
       outOfScopeSummary = collected.outOfScope;
     }
-    usage = { input: res.usage.input_tokens, output: res.usage.output_tokens };
+    usage = {
+      input: res.usage.input_tokens,
+      output: res.usage.output_tokens,
+      cache_read: res.usage.cache_read_input_tokens ?? 0,
+      cache_write: res.usage.cache_creation_input_tokens ?? 0,
+    };
   } catch (e) {
     const status = e instanceof Anthropic.APIError ? e.status : undefined;
     const message = e instanceof Error ? e.message : String(e);
@@ -168,6 +181,15 @@ oysterman.post('/chat', async (c) => {
   }
 
   if (reply && !/[ぁ-んァ-ン一-龥]/.test(reply)) reply = ''; // 日本語が1文字も無い返答（英文など）は捨てる
+  // 最終行の「根拠：…」を取り出して本文から外す（画面で小さく出す）
+  let basis: string[] = [];
+  {
+    const m = /(?:^|\n)\s*根拠[：:]\s*(.+)\s*$/.exec(reply);
+    if (m) {
+      basis = m[1].split(/[、,，・\s]+/).map((x) => x.trim()).filter(Boolean);
+      reply = reply.slice(0, m.index).trim();
+    }
+  }
   if (!reply && outOfScopeSummary) reply = `${cfg.out_of_scope.say}\n${outOfScopeSummary}`;
   if (!reply && reservation) reply = `了解です。「${reservation.work}」を予約します。`;
   if (!reply) reply = FALLBACK_REPLY;
@@ -202,6 +224,7 @@ oysterman.post('/chat', async (c) => {
   const firedIds = [...new Set(perLot.flatMap((p) => p.ev.fired_ids))];
   return c.json({
     reply,
+    basis,
     fired_rules: firedIds,
     focus: focusLots.map((l) => l.location_label),
     out_of_scope: outOfScope,
@@ -229,10 +252,18 @@ function briefLot(l: LotSummary) {
 }
 
 async function callClaude(client: Anthropic, system: string, messages: ChatMessage[], tools: Anthropic.Tool[]) {
+  // 知識を含む長いシステムプロンプトはプロンプトキャッシュに載せる。
+  // テンプレートの <<<DYNAMIC>>> より前（話し方・用語集・ルール表・知識）は毎回同じなのでキャッシュ、後ろ（記録・水温・成立ルール）は変動。
+  const [stable, dynamic] = system.split('<<<DYNAMIC>>>');
   return client.messages.create({
     model: CHAT_MODEL,
     max_tokens: 1024,
-    system,
+    system: dynamic
+      ? [
+          { type: 'text', text: stable, cache_control: { type: 'ephemeral' } },
+          { type: 'text', text: dynamic },
+        ]
+      : [{ type: 'text', text: system, cache_control: { type: 'ephemeral' } }],
     messages: messages.map((m) => ({ role: m.role, content: m.content })),
     tools,
     thinking: { type: 'between_tools' },

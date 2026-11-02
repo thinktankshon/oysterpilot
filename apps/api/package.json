@@ -11,7 +11,7 @@
     "d1:migrate": "wrangler d1 migrations apply oysterpilot --remote",
     "seed:local": "node ../../scripts/seed.ts ../../data/seed_records.csv > .seed.sql && wrangler d1 execute oysterpilot --local --file .seed.sql",
     "seed": "node ../../scripts/seed.ts ../../data/seed_records.csv > .seed.sql && wrangler d1 execute oysterpilot --remote --file .seed.sql",
-    "test": "node --test src/rules.test.ts",
+    "test": "node --test src/rules.test.ts src/lot.test.ts",
     "fetch:jma": "node ../../scripts/fetch_jma.ts"
   },
   "dependencies": {

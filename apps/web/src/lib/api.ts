@@ -268,6 +268,7 @@ export type ChatMessage = { role: 'user' | 'assistant'; content: string };
 export type BriefLot = { location_label: string; days_since_last_sort: number | null; avg_weight_g: number | null; count_per_basket: number | null };
 export type ChatResponse = {
   reply: string;
+  basis: string[];
   fired_rules: string[];
   focus: string[];
   out_of_scope: boolean;

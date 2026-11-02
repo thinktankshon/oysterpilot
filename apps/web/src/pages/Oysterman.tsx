@@ -8,7 +8,7 @@ const PROPOSAL_RULES = ['R4_basket_target', 'R5_shell_long', 'R6_shell_smooth', 
 const EXAMPLES = ['今日ってどの作業がいいかな？', '最近の水温ってどう？', '3番ラインの貝、刃先がひょろっと伸びてきた。このままでいい？'];
 const EXAMPLES_FROM_SCAN = ['この海で始めるときの注意は？', '最近の水温ってどう？'];
 
-type Bubble = { id: number; role: 'user' | 'ai' | 'system'; text: string; canReserve?: boolean; consult?: boolean };
+type Bubble = { id: number; role: 'user' | 'ai' | 'system'; text: string; basis?: string[]; canReserve?: boolean; consult?: boolean };
 
 export function Oysterman() {
   const [env, setEnv] = useState<EnvMetrics | null>(null);
@@ -18,6 +18,7 @@ export function Oysterman() {
   const [input, setInput] = useState('');
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [lastFocus, setLastFocus] = useState<string[]>([]);
   const idRef = useRef(0);
   const endRef = useRef<HTMLDivElement | null>(null);
   const handoffShown = useRef(false);
@@ -88,8 +89,9 @@ export function Oysterman() {
       setHistory([...next, { role: 'assistant', content: r.reply }]);
       setLots(r.context.lots);
       setEnv(r.context.env);
+      setLastFocus(r.focus);
       const proposes = r.fired_rules.some((id) => PROPOSAL_RULES.includes(id));
-      push({ role: 'ai', text: r.reply, canReserve: !r.reservation && proposes && !r.out_of_scope, consult: r.out_of_scope });
+      push({ role: 'ai', text: r.reply, basis: r.basis, canReserve: !r.reservation && proposes && !r.out_of_scope, consult: r.out_of_scope });
       if (r.reservation) {
         const where = r.reservation.location_label ? `${r.reservation.location_label} ` : '';
         push({ role: 'system', text: `✓ Voysy に『${formatDay(r.reservation.due_date)}：${where}${r.reservation.work}』を予約しました` });
@@ -144,8 +146,14 @@ export function Oysterman() {
         {bubbles.map((b) => (
           <div key={b.id} className={`bubble ${b.role}`}>
             <p>{b.text}</p>
+            {b.basis && b.basis.length > 0 && <p className="basis">根拠：{b.basis.join('・')}</p>}
             {b.canReserve && (
-              <button type="button" className="btn small" onClick={() => send('この作業を予約して。明日やる。')} disabled={sending}>
+              <button
+                type="button"
+                className="btn small"
+                onClick={() => send(lastFocus.length === 1 ? `この作業を予約して。明日やる。場所は${lastFocus[0]}。` : 'この作業を予約して。明日やる。')}
+                disabled={sending}
+              >
                 この作業を予約する
               </button>
             )}

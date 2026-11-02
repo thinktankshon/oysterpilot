@@ -101,3 +101,29 @@ export function parseLocation(text: string): LocationKey | null {
   const tier = /上段/.test(t) ? '上段' : /中段/.test(t) ? '中段' : /下段/.test(t) ? '下段' : null;
   return { line: Number(m[1]), tier };
 }
+
+/**
+ * 会話全体から相談対象の場所を解決する。
+ * 「3番ラインの貝…」→ 3番（段なし）、続けて「上段だけ」→ 3番・上段、のように後の発話で段を補う。
+ * 「上段だけ。下段は締まってる」のように複数の段が出たら「だけ」が付いた段を採る。
+ */
+export function resolveFocus(userMessages: string[]): LocationKey | null {
+  let line: number | null = null;
+  let tier: string | null = null;
+  for (const raw of userMessages) {
+    const t = raw.replace(/\s+/g, '');
+    const loc = parseLocation(t);
+    if (loc) {
+      if (loc.line !== line) tier = null; // 別のラインに移ったら段は引き継がない
+      line = loc.line;
+      if (loc.tier) tier = loc.tier;
+      continue;
+    }
+    if (line == null) continue;
+    const only = /(上段|中段|下段)(だけ|のみ)/.exec(t);
+    const any = /(上段|中段|下段)/.exec(t);
+    if (only) tier = only[1];
+    else if (any) tier = any[1];
+  }
+  return line == null ? null : { line, tier };
+}

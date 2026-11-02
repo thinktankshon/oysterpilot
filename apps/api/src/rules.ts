@@ -13,6 +13,11 @@ export type Thresholds = {
   basket_kg_normal: number;
   basket_kg_thin: number;
   basket_kg_dense: number;
+  basket_fill_ratio?: number;
+  basket_volumes_l?: number[];
+  mortality_notice_ratio?: number;
+  mortality_notice_weight_g?: number;
+  summer_work_mean7_c?: number;
 };
 
 export type RuleDef = {
@@ -34,12 +39,16 @@ export type EnvInput = {
   hot_streak: number;
   cold_streak: number;
   in_growth_band: boolean;
+  mean7?: number | null;
+  season?: 'growth' | 'hot' | 'cold' | 'mild';
 };
 
 export type LotInput = {
   days_since_last_sort: number | null;
   avg_weight_g: number | null;
   count_per_basket: number | null;
+  basket_count?: number | null;
+  mortality_recent?: number | null;
 };
 
 export type Topic = {
@@ -47,6 +56,7 @@ export type Topic = {
   shell_long: boolean; // 殻（刃先）が伸びている
   shell_smooth: boolean; // 殻がツルツル・削られすぎ
   poor_meat: boolean; // 身入り・身質が悪い
+  storm: boolean; // 台風・大雨・時化
   out_of_scope: boolean; // 病気・衛生・販売・法規、または「分からない」「解決しない」
 };
 
@@ -59,6 +69,8 @@ export type Evaluation = {
   basket_kg_target: number;
   basket_kg_label: 'normal' | 'thin' | 'dense';
   count_target: number | null;
+  basket_fill_hint: string | null; // 「かご容量の1/4（15Lで約1.5kg、25Lで約2.0kg）」
+  mortality_ratio: number | null;
   hints: string[]; // 言い回しの補足（例：高水温なので手早く）
   ask_first: string | null; // 先に1つだけ聞き返す内容
   out_of_scope: boolean;
@@ -73,6 +85,7 @@ export function detectTopic(text: string): Topic {
     shell_long: has(/(殻|刃先|カラ).{0,6}(伸び|のび|ひょろ|長)|ひょろ|伸びてき/),
     shell_smooth: has(/ツルツル|つるつる|削られ|けずられ|丸くなりすぎ|丸すぎ/),
     poor_meat: has(/(身入り|身質|身).{0,4}(悪|薄|細|少な|良くない|よくない)/),
+    storm: has(/台風|大雨|時化|しけ|低気圧|豪雨/),
     out_of_scope: has(/ノロ|ウイルス|貝毒|衛生|病気|販売|売|価格|値段|法律|法規|許可|保険|分からない|わからない|解決しない|解決できない/),
   };
 }
@@ -93,6 +106,15 @@ export function evaluateRules(cfg: RulesConfig, env: EnvInput, lot: LotInput, to
   const r3 = !r7 && env.in_growth_band && days != null && days >= th.growth_check_days && days < effective;
   const r5 = topic.shell_long;
   const r6 = topic.shell_smooth;
+  // R8: 直近の選別で数えた斃死 ÷（残った個数＋斃死）
+  const total = lot.count_per_basket != null && lot.basket_count != null ? lot.count_per_basket * lot.basket_count : null;
+  const mortalityRatio =
+    lot.mortality_recent != null && total != null && total + lot.mortality_recent > 0
+      ? Math.round((lot.mortality_recent / (total + lot.mortality_recent)) * 1000) / 1000
+      : null;
+  const r8 = mortalityRatio != null && mortalityRatio >= (th.mortality_notice_ratio ?? 0.2);
+  const r9 = env.season === 'hot' || (env.mean7 != null && env.mean7 >= (th.summer_work_mean7_c ?? 26));
+  const r10 = topic.storm;
 
   if (r1) {
     thin = true;
@@ -116,6 +138,15 @@ export function evaluateRules(cfg: RulesConfig, env: EnvInput, lot: LotInput, to
     fired.push(fire(byId, 'R6_shell_smooth', {}));
   }
   if (topic.poor_meat) thin = true;
+  if (r8) {
+    thin = true;
+    fired.push(fire(byId, 'R8_mortality_notice', { mortality_pct: String(Math.round((mortalityRatio ?? 0) * 100)) }));
+    if (lot.avg_weight_g != null && lot.avg_weight_g >= (th.mortality_notice_weight_g ?? 30)) {
+      hints.push('30g 以上の貝での斃死 20% 以上は、小さいサイズの同じ率より影響が大きい');
+    }
+  }
+  if (r9) fired.push(fire(byId, 'R9_summer_work', {}));
+  if (r10) fired.push(fire(byId, 'R10_storm', {}));
 
   const label: Evaluation['basket_kg_label'] = dense ? 'dense' : thin ? 'thin' : 'normal';
   const target = label === 'dense' ? th.basket_kg_dense : label === 'thin' ? th.basket_kg_thin : th.basket_kg_normal;
@@ -132,6 +163,9 @@ export function evaluateRules(cfg: RulesConfig, env: EnvInput, lot: LotInput, to
   }
 
   const askRule = fired.find((f) => f.ask_first);
+  const ratio = th.basket_fill_ratio ?? 0.25;
+  const vols = th.basket_volumes_l ?? [15, 25];
+  const fillHint = `かご容量の${Math.round(ratio * 100)}%（${vols.map((v) => `${v}Lで約${(v * ratio * 0.4).toFixed(1)}kg`).join('、')}）`;
   return {
     fired,
     fired_ids: fired.map((f) => f.id),
@@ -139,6 +173,8 @@ export function evaluateRules(cfg: RulesConfig, env: EnvInput, lot: LotInput, to
     basket_kg_target: target,
     basket_kg_label: label,
     count_target: count,
+    basket_fill_hint: fillHint,
+    mortality_ratio: mortalityRatio,
     hints,
     ask_first: askRule?.ask_first ?? null,
     out_of_scope: topic.out_of_scope,

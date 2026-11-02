@@ -229,3 +229,4 @@ body {
   border: 1px solid var(--line); background: #fff; color: var(--muted); font-size: 1.1rem; line-height: 1;
 }
 .th-note { display: block; font-weight: 400; font-size: 0.75rem; color: var(--muted); }
+.bubble .basis { margin-top: 8px; font-size: 0.78rem; color: var(--muted); }
