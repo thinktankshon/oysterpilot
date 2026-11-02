@@ -209,3 +209,23 @@ body {
 .disclaimer { color: var(--muted); font-size: 0.8rem; line-height: 1.6; border-top: 1px solid var(--line); padding-top: 10px; }
 .disclaimer p { margin: 0 0 4px; }
 @media (max-width: 560px) { .tiles { grid-template-columns: 1fr; } }
+
+/* 選別のサイズ帯 */
+.bands { margin-top: 12px; display: flex; flex-direction: column; gap: 10px; }
+.bands-head { display: flex; justify-content: space-between; align-items: center; color: var(--muted); font-weight: 600; }
+.band {
+  position: relative; display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px;
+  background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 12px 40px 12px 12px;
+}
+.band.is-missing { border-color: var(--rec); }
+.band label { display: flex; flex-direction: column; gap: 4px; }
+.band label > span:first-child { color: var(--muted); font-size: 0.8rem; }
+.band input, .band select {
+  width: 100%; min-height: 52px; font-size: 1.1rem; padding: 6px 10px;
+  border: 2px solid var(--line); border-radius: 10px; background: #fff; color: var(--fg); font-family: inherit;
+}
+.band-remove {
+  position: absolute; top: 8px; right: 8px; width: 32px; height: 32px; border-radius: 50%;
+  border: 1px solid var(--line); background: #fff; color: var(--muted); font-size: 1.1rem; line-height: 1;
+}
+.th-note { display: block; font-weight: 400; font-size: 0.75rem; color: var(--muted); }

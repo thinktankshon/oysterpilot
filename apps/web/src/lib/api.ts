@@ -83,6 +83,13 @@ export type ReservationRow = {
   status: string;
 };
 
+/** 選別のサイズ帯（1 帯 = 1 件の記録として保存） */
+export type ExtractItem = {
+  avg_weight_g: number | null;
+  count_per_basket: number | null;
+  basket_count: number | null;
+};
+
 /** /api/voysy/extract の結果（docs/01） */
 export type ExtractResult = {
   work_type: string;
@@ -93,12 +100,48 @@ export type ExtractResult = {
   count_per_basket: number | null;
   mortality: number | null;
   basket_count: number | null;
+  items: ExtractItem[];
   missing: string[];
   notes: string | null;
 };
 
-/** POST /api/records の本文 */
-export type RecordInput = Omit<ExtractResult, 'missing'> & { raw_text: string };
+/** POST /api/records の本文（1 件） */
+export type RecordInput = Omit<ExtractResult, 'missing' | 'items'> & { raw_text: string };
+
+/** 抽出結果を帯ごとの記録に展開する。帯の場所が無ければ全体の場所を使う */
+export function toRecordInputs(r: ExtractResult, rawText: string): RecordInput[] {
+  const base = {
+    work_type: r.work_type,
+    lot_no: r.lot_no,
+    mortality: r.mortality,
+    notes: r.notes,
+    raw_text: rawText,
+  };
+  const items = r.items.length ? r.items : [{ avg_weight_g: r.avg_weight_g, count_per_basket: r.count_per_basket, basket_count: r.basket_count }];
+  return items.map((it, i) => ({
+    ...base,
+    mortality: i === 0 ? r.mortality : null, // 斃死は全体の値なので先頭の帯にだけ付ける
+    location_line: r.location_line,
+    location_tier: r.location_tier,
+    avg_weight_g: it.avg_weight_g,
+    count_per_basket: it.count_per_basket,
+    basket_count: it.basket_count,
+  }));
+}
+
+/** 直近の記録を「同じ発話・同じ時刻」でまとめる（選別の複数帯を 1 行に） */
+export type RecordGroup = { key: string; recorded_at: string; work_type: string; rows: RecordRow[] };
+export function groupRecords(rows: RecordRow[]): RecordGroup[] {
+  const groups: RecordGroup[] = [];
+  for (const r of rows) {
+    const key = `${r.recorded_at}|${r.raw_text}`;
+    const g = groups.find((x) => x.key === key);
+    if (g) g.rows.push(r);
+    else groups.push({ key, recorded_at: r.recorded_at, work_type: r.work_type, rows: [r] });
+  }
+  for (const g of groups) g.rows.sort((a, b) => a.id - b.id); // 帯は発話の順に並べる
+  return groups;
+}
 
 /** 作業セッションの区切り（voice_segments） */
 export type SegmentRow = {
@@ -129,6 +172,7 @@ const PENDING_STORAGE = 'oysterpilot.pendingRecords';
 
 export type PendingInput =
   | { kind: 'record'; input: RecordInput; segment_id?: number }
+  | { kind: 'records'; inputs: RecordInput[]; segment_id?: number }
   | { kind: 'segment'; input: SegmentInput };
 export type PendingItem = PendingInput & { key: string; created_at: string };
 
@@ -163,6 +207,10 @@ export function addPending(item: PendingInput): PendingItem[] {
 export async function sendPending(item: PendingItem): Promise<void> {
   if (item.kind === 'segment') {
     await api<{ id: number }>('/api/segments', { method: 'POST', body: JSON.stringify(item.input) });
+    return;
+  }
+  if (item.kind === 'records') {
+    await saveRecords(item.inputs, item.segment_id);
     return;
   }
   const { id } = await api<{ id: number }>('/api/records', { method: 'POST', body: JSON.stringify(item.input) });
@@ -244,3 +292,12 @@ export type ScanMetrics = {
 };
 export type ScanEvaluate = { supported: boolean; lat: number; lng: number; metrics: ScanMetrics };
 export type ScanReport = { id: number; report_text: string; metrics: ScanMetrics; lat?: number; lng?: number };
+
+/** 帯ごとの記録を一括保存（区切り ID があれば確定も同時に） */
+export async function saveRecords(inputs: RecordInput[], segmentId?: number): Promise<number[]> {
+  const { ids } = await api<{ ids: number[] }>('/api/records/bulk', {
+    method: 'POST',
+    body: JSON.stringify({ records: inputs, ...(segmentId != null ? { segment_id: segmentId } : {}) }),
+  });
+  return ids;
+}

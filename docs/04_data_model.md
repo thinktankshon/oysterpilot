@@ -67,6 +67,7 @@ CREATE TABLE scan_reports (
 |---|---|---|---|---|
 | POST | `/api/voysy/extract` | `{text}` | 構造化 JSON（`01_voysy.md`） | Voysy |
 | POST | `/api/records` | 構造化 JSON ＋ `raw_text` ＋ `notes` | `{id}` | Voysy |
+| POST | `/api/records/bulk` | `{records: [...], segment_id?}`（選別の帯ごとに 1 件、最大 20） | `{ids}` | Voysy |
 | POST | `/api/segments` | `{session_id, seq, recorded_at, raw_text}` | `{id}` | Voysy（作業中） |
 | GET | `/api/segments?status=draft` | | segments[] | Voysy（陸でチェック） |
 | PATCH | `/api/segments/:id` | `{raw_text?, status?, record_id?}` | `{ok}` | Voysy（陸でチェック） |

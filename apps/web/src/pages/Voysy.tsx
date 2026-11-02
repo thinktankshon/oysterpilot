@@ -4,16 +4,18 @@ import {
   api,
   formatDate,
   formatDay,
+  groupRecords,
   isRetryable,
   jstNowIso,
   loadPending,
   locationLabel,
-  markSegmentDone,
+  saveRecords,
   savePending,
   sendPending,
+  toRecordInputs,
+  type ExtractItem,
   type ExtractResult,
   type PendingItem,
-  type RecordInput,
   type RecordRow,
   type ReservationRow,
   type SegmentInput,
@@ -42,6 +44,7 @@ const FIELD_LABELS: Record<string, string> = {
 const NUM_FIELDS = ['location_line', 'avg_weight_g', 'count_per_basket', 'mortality', 'basket_count'] as const;
 type NumField = (typeof NUM_FIELDS)[number];
 
+const EMPTY_ITEM: ExtractItem = { avg_weight_g: null, count_per_basket: null, basket_count: null };
 const EMPTY_RESULT: ExtractResult = {
   work_type: 'その他',
   location_line: null,
@@ -51,6 +54,7 @@ const EMPTY_RESULT: ExtractResult = {
   count_per_basket: null,
   mortality: null,
   basket_count: null,
+  items: [EMPTY_ITEM],
   missing: ['location_line', 'location_tier', 'lot_no', 'avg_weight_g', 'count_per_basket', 'mortality', 'basket_count'],
   notes: null,
 };
@@ -100,7 +104,7 @@ export function Voysy() {
 
   const loadRecent = useCallback(async () => {
     try {
-      setRecent(await api<RecordRow[]>('/api/records?limit=3'));
+      setRecent(await api<RecordRow[]>('/api/records?limit=12'));
       setListError(null);
     } catch (e) {
       setListError(e instanceof Error ? e.message : String(e));
@@ -297,7 +301,7 @@ export function Voysy() {
         method: 'POST',
         body: JSON.stringify({ text }),
       });
-      setResult(r);
+      setResult({ ...r, items: r.items.length ? r.items : [EMPTY_ITEM] });
       setPhase('review');
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
@@ -318,30 +322,22 @@ export function Voysy() {
   const setField = <K extends keyof ExtractResult>(key: K, value: ExtractResult[K]) =>
     setResult((r) => ({ ...r, [key]: value }));
 
-  const toInput = (): RecordInput => ({
-    work_type: result.work_type,
-    location_line: result.location_line,
-    location_tier: result.location_tier,
-    lot_no: result.lot_no,
-    avg_weight_g: result.avg_weight_g,
-    count_per_basket: result.count_per_basket,
-    mortality: result.mortality,
-    basket_count: result.basket_count,
-    notes: result.notes,
-    raw_text: draft.trim() || '（手入力）',
-  });
+  const setItem = (i: number, patch: Partial<ExtractItem>) =>
+    setResult((r) => ({ ...r, items: r.items.map((it, j) => (j === i ? { ...it, ...patch } : it)) }));
+  const addItem = () => setResult((r) => ({ ...r, items: [...r.items, EMPTY_ITEM] }));
+  const removeItem = (i: number) =>
+    setResult((r) => ({ ...r, items: r.items.length > 1 ? r.items.filter((_, j) => j !== i) : r.items }));
 
   // VO-05 / VO-06 / VO-13: 保存。通信失敗なら未送信に残す。区切りから来たら確定にして次へ
   const save = async () => {
     setError(null);
     setSaving(true);
-    const input = toInput();
+    const inputs = toRecordInputs(result, draft.trim() || '（手入力）');
     const segId = currentSegmentId;
     try {
-      const { id } = await api<{ id: number }>('/api/records', { method: 'POST', body: JSON.stringify(input) });
-      if (segId != null) await markSegmentDone(segId, id);
+      await saveRecords(inputs, segId ?? undefined);
       setCurrentSegmentId(null);
-      showToast('保存しました');
+      showToast(inputs.length > 1 ? `${inputs.length}件（サイズ帯ごと）保存しました` : '保存しました');
       await loadRecent();
       if (segId != null) {
         const rest = (await api<SegmentRow[]>('/api/segments?status=draft').catch(() => [])).filter((d) => d.id !== segId);
@@ -354,7 +350,7 @@ export function Voysy() {
       setPhase('idle');
     } catch (e) {
       if (isRetryable(e)) {
-        setPending(addPending({ kind: 'record', input, segment_id: segId ?? undefined }));
+        setPending(addPending({ kind: 'records', inputs, segment_id: segId ?? undefined }));
         setCurrentSegmentId(null);
         setPhase('idle');
         showToast('通信できないため、未送信に残しました');
@@ -429,6 +425,9 @@ export function Voysy() {
 
   // いま空のままの missing 項目だけ「確認」に出す
   const openMissing = result.missing.filter((f) => {
+    if (f === 'avg_weight_g' || f === 'count_per_basket' || f === 'basket_count') {
+      return result.items.every((it) => it[f] == null);
+    }
     const v = result[f as keyof ExtractResult];
     return v == null || v === '';
   });
@@ -464,17 +463,19 @@ export function Voysy() {
             {listError && <p className="error">記録を読めませんでした（{listError}）</p>}
             {!listError && recent.length === 0 && <p className="muted">まだ記録がありません</p>}
             <ul className="record-list">
-              {recent.map((r) => (
-                <li key={r.id} className="record-row">
-                  <span className="record-date">{formatDate(r.recorded_at)}</span>
-                  <span className="record-loc">{locationLabel(r)}</span>
-                  <span className="record-work">{r.work_type}</span>
-                  <span className="record-nums">
-                    {r.avg_weight_g != null ? `${r.avg_weight_g}g` : ''}
-                    {r.count_per_basket != null ? ` ${r.count_per_basket}個/かご` : ''}
-                  </span>
-                </li>
-              ))}
+              {groupRecords(recent)
+                .slice(0, 3)
+                .map((g) => (
+                  <li key={g.key} className="record-row">
+                    <span className="record-date">{formatDate(g.recorded_at)}</span>
+                    <span className="record-loc">
+                      {g.rows[0].location_line != null ? locationLabel(g.rows[0]) : g.rows[0].lot_no ?? '場所なし'}
+                      {g.rows[0].location_line != null && g.rows[0].lot_no ? ` ${g.rows[0].lot_no}` : ''}
+                    </span>
+                    <span className="record-work">{g.work_type}</span>
+                    <span className="record-nums">{g.rows.map(bandLabel).filter(Boolean).join('／')}</span>
+                  </li>
+                ))}
             </ul>
           </div>
 
@@ -603,11 +604,16 @@ export function Voysy() {
           <h1 className="title">記録の確認</h1>
           <p className="lead">違っていれば直してから「保存」。</p>
 
-          {openMissing.length > 0 && (
+          {(openMissing.length > 0 || result.items.some((it) => it.avg_weight_g == null || it.count_per_basket == null || it.basket_count == null)) && (
             <ul className="missing-list">
-              {openMissing.map((f) => (
-                <li key={f}>確認：{FIELD_LABELS[f] ?? f}は？</li>
-              ))}
+              {openMissing
+                .filter((f) => f !== 'avg_weight_g' && f !== 'count_per_basket' && f !== 'basket_count')
+                .map((f) => (
+                  <li key={f}>確認：{FIELD_LABELS[f] ?? f}は？</li>
+                ))}
+              {result.items.some((it) => it.avg_weight_g == null || it.count_per_basket == null || it.basket_count == null) && (
+                <li key="bands">確認：サイズ帯に空欄があります（聞き取れなかった数字、または 200g 超などあり得ない値）</li>
+              )}
             </ul>
           )}
 
@@ -626,7 +632,10 @@ export function Voysy() {
                 </td>
               </tr>
               <tr className={openMissing.includes('location_line') ? 'is-missing' : ''}>
-                <th>{FIELD_LABELS.location_line}</th>
+                <th>
+                  {FIELD_LABELS.location_line}
+                  {result.work_type === '選別' && <small className="th-note">選別時は未確定でよい</small>}
+                </th>
                 <td>{numberInput('location_line', result, setField)}</td>
               </tr>
               <tr className={openMissing.includes('location_tier') ? 'is-missing' : ''}>
@@ -656,12 +665,10 @@ export function Voysy() {
                   />
                 </td>
               </tr>
-              {(['avg_weight_g', 'count_per_basket', 'mortality', 'basket_count'] as const).map((f) => (
-                <tr key={f} className={openMissing.includes(f) ? 'is-missing' : ''}>
-                  <th>{FIELD_LABELS[f]}</th>
-                  <td>{numberInput(f, result, setField)}</td>
-                </tr>
-              ))}
+              <tr className={openMissing.includes('mortality') ? 'is-missing' : ''}>
+                <th>{FIELD_LABELS.mortality}</th>
+                <td>{numberInput('mortality', result, setField)}</td>
+              </tr>
               {/* VO-14: メモは編集できる */}
               <tr>
                 <th>メモ</th>
@@ -677,6 +684,38 @@ export function Voysy() {
               </tr>
             </tbody>
           </table>
+
+          {/* 選別のサイズ帯：帯ごとに 1 件の記録になる */}
+          <div className="bands">
+            <div className="bands-head">
+              <span>サイズ帯（{result.items.length}）</span>
+              <button type="button" className="btn small ghost" onClick={addItem}>
+                帯を追加
+              </button>
+            </div>
+            {/* 帯のどれかが空（聞き間違いで落とした値を含む）なら赤枠で知らせる */}
+            {result.items.map((it, i) => (
+              <div key={i} className={'band' + (it.avg_weight_g == null || it.count_per_basket == null || it.basket_count == null ? ' is-missing' : '')}>
+                <label>
+                  <span>サイズ（g）</span>
+                  <input type="number" inputMode="numeric" min={0} value={it.avg_weight_g ?? ''} placeholder="—" onChange={(e) => setItem(i, { avg_weight_g: numOrNull(e.target.value) })} />
+                </label>
+                <label>
+                  <span>入数（個/かご）</span>
+                  <input type="number" inputMode="numeric" min={0} value={it.count_per_basket ?? ''} placeholder="—" onChange={(e) => setItem(i, { count_per_basket: numOrNull(e.target.value) })} />
+                </label>
+                <label>
+                  <span>かご数</span>
+                  <input type="number" inputMode="numeric" min={0} value={it.basket_count ?? ''} placeholder="—" onChange={(e) => setItem(i, { basket_count: numOrNull(e.target.value) })} />
+                </label>
+                {result.items.length > 1 && (
+                  <button type="button" className="band-remove" onClick={() => removeItem(i)} aria-label="この帯を削除">
+                    ×
+                  </button>
+                )}
+              </div>
+            ))}
+          </div>
 
           <details className="raw">
             <summary>元の発話</summary>
@@ -771,6 +810,21 @@ function numberInput(
       }}
     />
   );
+}
+
+function numOrNull(v: string): number | null {
+  if (v === '') return null;
+  const n = Math.max(0, Math.floor(Number(v)));
+  return Number.isFinite(n) ? n : null;
+}
+
+/** 一覧用：30g×60個×10カゴ */
+function bandLabel(r: RecordRow): string {
+  const parts: string[] = [];
+  if (r.avg_weight_g != null) parts.push(`${r.avg_weight_g}g`);
+  if (r.count_per_basket != null) parts.push(`${r.count_per_basket}個`);
+  if (r.basket_count != null) parts.push(`${r.basket_count}カゴ`);
+  return parts.join('×');
 }
 
 /** 区切りの文を整える：前後の空白と句読点だけの残りを落とす */

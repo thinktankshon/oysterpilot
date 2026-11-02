@@ -23,6 +23,18 @@ work_types:            # Voysy の work_type 正規化先
   - 揺らし
   - 移動
   - その他
+lot_format:            # ロット番号の型（Voysy の読み取り・検証に使う）
+  pattern: "R{season}-K{n}"       # 例：R8-K3。season は年度の数字、n は 1〜2 桁
+  regex: "^R\\d{1,2}-K\\d{1,2}$"
+  current_prefix: R8              # 「K3」とだけ言われたら今季の接頭辞を補う
+  examples: [R8-K1, R8-K3, R8-K12]
+
+plausible_ranges:      # 音声の聞き間違い対策。範囲外は null にして「確認」に回す（Voysy の抽出・検証で使う）
+  avg_weight_g: [1, 200]        # シングルシードのサイズ。200g 超はあり得ない（30g が 330g になる誤認識など）
+  count_per_basket: [1, 300]
+  basket_count: [1, 500]
+  mortality: [0, 2000]
+
 voice_cues_file: config/voice_cues.json   # 作業セッションの合図語（区切り・終了）。JSON なのは Web と Worker の両方が追加ライブラリなしで読むため
 
 aliases:               # 発話 → 正規化

@@ -112,6 +112,51 @@ app.post('/records', async (c) => {
   return c.json({ id: res.meta.last_row_id }, 201);
 });
 
+// POST /api/records/bulk  { records: [...], segment_id? } → { ids }  選別の複数サイズ帯を一度に保存
+app.post('/records/bulk', async (c) => {
+  const body = await c.req.json<{ records?: Partial<RecordRow>[]; segment_id?: number }>().catch(() => null);
+  if (!body || !Array.isArray(body.records) || body.records.length === 0) return c.json({ error: 'records is required' }, 400);
+  if (body.records.length > 20) return c.json({ error: 'too many records (max 20)' }, 400);
+  const num = (v: unknown) => (typeof v === 'number' && Number.isFinite(v) ? v : null);
+  const str = (v: unknown) => (typeof v === 'string' && v.length ? v : null);
+  const now = jstNowIso();
+  const stmts = [];
+  for (const r of body.records) {
+    if (!r.work_type || !(WORK_TYPES as readonly string[]).includes(r.work_type)) {
+      return c.json({ error: 'work_type is required (選別/分殖/沖出し/陸揚げ/揺らし/移動/その他)' }, 400);
+    }
+    if (!r.raw_text || typeof r.raw_text !== 'string') return c.json({ error: 'raw_text is required' }, 400);
+    stmts.push(
+      c.env.DB.prepare(
+        `INSERT INTO records (recorded_at, work_type, location_line, location_tier, lot_no,
+           avg_weight_g, count_per_basket, mortality, basket_count, raw_text, notes, source)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'voysy')`,
+      ).bind(
+        r.recorded_at ?? now,
+        r.work_type,
+        num(r.location_line),
+        str(r.location_tier),
+        str(r.lot_no),
+        num(r.avg_weight_g),
+        num(r.count_per_basket),
+        num(r.mortality),
+        num(r.basket_count),
+        r.raw_text,
+        str(r.notes),
+      ),
+    );
+  }
+  const results = await c.env.DB.batch(stmts);
+  const ids = results.map((x) => Number(x.meta.last_row_id));
+  if (typeof body.segment_id === 'number') {
+    await c.env.DB.prepare("UPDATE voice_segments SET status = 'done', record_id = ? WHERE id = ?")
+      .bind(ids[0], body.segment_id)
+      .run()
+      .catch(() => undefined);
+  }
+  return c.json({ ids }, 201);
+});
+
 // GET /api/reservations?status=open
 app.get('/reservations', async (c) => {
   const status = c.req.query('status') ?? 'open';

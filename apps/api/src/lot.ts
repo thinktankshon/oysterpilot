@@ -32,7 +32,16 @@ export async function getLotSummary(
   const stmt = tier ? db.prepare(sql).bind(line, tier) : db.prepare(sql).bind(line);
   const { results } = await stmt.all<RecordRow>();
   const latest = results[0] ?? null;
-  const lastSort = results.find((r) => r.work_type === '選別') ?? null;
+  // 前回の選別：この場所の選別記録、無ければこの場所にいるロット（最新記録の lot_no）の選別記録（選別は場所が未確定のため）
+  let lastSort = results.find((r) => r.work_type === '選別') ?? null;
+  const lotHere = results.find((r) => r.lot_no)?.lot_no ?? null;
+  if (lotHere) {
+    const byLot = await db
+      .prepare("SELECT * FROM records WHERE work_type = '選別' AND lot_no = ? ORDER BY recorded_at DESC, id DESC LIMIT 1")
+      .bind(lotHere)
+      .first<RecordRow>();
+    if (byLot && (!lastSort || byLot.recorded_at > lastSort.recorded_at)) lastSort = byLot;
+  }
   const firstNum = (k: 'avg_weight_g' | 'count_per_basket' | 'mortality') =>
     results.find((r) => r[k] != null)?.[k] ?? null;
   const w = firstNum('avg_weight_g');
