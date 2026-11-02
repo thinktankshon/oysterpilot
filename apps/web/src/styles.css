@@ -186,3 +186,26 @@ body {
   border: 2px solid var(--line); border-radius: 14px; padding: 12px 14px; resize: none; background: #fff;
 }
 .btn.send { min-width: 96px; }
+
+/* Oyscan（PC 向け 2 カラム、狭い画面は縦積み） */
+.scan { display: grid; grid-template-columns: 1fr; gap: 16px; }
+@media (min-width: 900px) {
+  .scan { grid-template-columns: 1.2fr 1fr; align-items: start; }
+  .main:has(.scan) { max-width: 1200px; }
+}
+.scan-map { width: 100%; height: 52vh; min-height: 320px; border-radius: 14px; overflow: hidden; border: 1px solid var(--line); background: #dfe9f0; }
+.scan-point { margin: 8px 0 0; color: var(--muted); font-variant-numeric: tabular-nums; }
+.scan-panel { display: flex; flex-direction: column; gap: 12px; }
+.tiles { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+.tile { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 12px; }
+.tile-label { color: var(--muted); font-size: 0.85rem; }
+.tile-value { font-size: 1.5rem; font-weight: 800; margin: 2px 0; }
+.tile-sub { color: var(--muted); font-size: 0.78rem; line-height: 1.4; }
+.tile.level-low .tile-value { color: var(--ok); }
+.tile.level-mid .tile-value { color: var(--warn); }
+.tile.level-high .tile-value { color: var(--rec); }
+.recent-line { margin: 0; line-height: 1.7; }
+.report-text { margin: 0; line-height: 1.75; }
+.disclaimer { color: var(--muted); font-size: 0.8rem; line-height: 1.6; border-top: 1px solid var(--line); padding-top: 10px; }
+.disclaimer p { margin: 0 0 4px; }
+@media (max-width: 560px) { .tiles { grid-template-columns: 1fr; } }

@@ -1,7 +1,9 @@
-import { useEffect, useState } from 'react';
+import { Suspense, lazy, useEffect, useState } from 'react';
 import { Voysy } from './pages/Voysy';
 import { Oysterman } from './pages/Oysterman';
-import { Scan } from './pages/Scan';
+
+// Oyscan は地図ライブラリが大きいので、開いたときだけ読み込む（iPhone の Voysy を軽く保つ）
+const Scan = lazy(() => import('./pages/Scan').then((m) => ({ default: m.Scan })));
 
 type Route = '/voysy' | '/oysterman' | '/scan';
 
@@ -12,7 +14,7 @@ function currentRoute(): Route {
   return '/voysy';
 }
 
-export function navigate(to: Route) {
+export function navigate(to: Route | `${Route}?${string}`) {
   window.history.pushState(null, '', to);
   window.dispatchEvent(new PopStateEvent('popstate'));
 }
@@ -35,7 +37,11 @@ export function App() {
       <main className="main">
         {route === '/voysy' && <Voysy />}
         {route === '/oysterman' && <Oysterman />}
-        {route === '/scan' && <Scan />}
+        {route === '/scan' && (
+          <Suspense fallback={<p className="muted">地図を読み込んでいます…</p>}>
+            <Scan />
+          </Suspense>
+        )}
       </main>
     </div>
   );

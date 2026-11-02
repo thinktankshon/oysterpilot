@@ -1,11 +1,12 @@
 import { useEffect, useRef, useState } from 'react';
-import { api, formatDay, type BriefLot, type ChatMessage, type ChatResponse, type EnvMetrics } from '../lib/api';
+import { api, formatDay, type BriefLot, type ChatMessage, type ChatResponse, type EnvMetrics, type ScanReport } from '../lib/api';
 
 // 範囲外のときの相談先（リブルの問い合わせページ）。デモでは押さない。URL は提出前に確認する
 const CONSULT_URL = 'https://reblue-k.com/';
 // 予約ボタンを出す対象（提案を含むルール）
 const PROPOSAL_RULES = ['R4_basket_target', 'R5_shell_long', 'R6_shell_smooth', 'R7_sort_due'];
 const EXAMPLES = ['今日ってどの作業がいいかな？', '最近の水温ってどう？', '3番ラインの貝、刃先がひょろっと伸びてきた。このままでいい？'];
+const EXAMPLES_FROM_SCAN = ['この海で始めるときの注意は？', '最近の水温ってどう？'];
 
 type Bubble = { id: number; role: 'user' | 'ai' | 'system'; text: string; canReserve?: boolean; consult?: boolean };
 
@@ -19,6 +20,7 @@ export function Oysterman() {
   const [error, setError] = useState<string | null>(null);
   const idRef = useRef(0);
   const endRef = useRef<HTMLDivElement | null>(null);
+  const handoffShown = useRef(false);
   const scanReportId = new URLSearchParams(window.location.search).get('report');
 
   // 新しい吹き出しを足すとき、前の吹き出しの予約ボタンは消す（最新の提案だけ予約できる）
@@ -47,8 +49,21 @@ export function Oysterman() {
         /* 場所の一行が出ないだけ */
       }
     })();
-    if (scanReportId) {
-      push({ role: 'system', text: `Oyscan の診断（レポート #${scanReportId}）を引き継ぎました。この海で始めるときの注意を聞けます。` });
+    if (scanReportId && !handoffShown.current) {
+      handoffShown.current = true;
+      void (async () => {
+        try {
+          const rep = await api<ScanReport>(`/api/scan/report/${scanReportId}`);
+          const m = rep.metrics;
+          const level = { low: '低', mid: '中', high: '高' }[m.hot_risk.level];
+          push({
+            role: 'system',
+            text: `Oyscan の診断を引き継ぎました：高水温リスク ${level}（${m.hot_risk.threshold_c}℃以上が${m.hot_risk.streak_days}日以上の年が${m.years.length}年中${m.hot_risk.years_with_streak}年）・生育が鈍る期間 年間約${m.cold_period.avg_days}日・成長しやすい期間 年間約${m.growth_period.avg_days}日。「この海で始めるときの注意は？」と聞けます。`,
+          });
+        } catch {
+          push({ role: 'system', text: `Oyscan の診断（レポート #${scanReportId}）を引き継ぎました。この海で始めるときの注意を聞けます。` });
+        }
+      })();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -116,10 +131,10 @@ export function Oysterman() {
       </div>
 
       <div className="chat" aria-live="polite">
-        {bubbles.length === 0 && (
+        {bubbles.every((b) => b.role === 'system') && (
           <div className="examples">
             <p className="muted">例えば、こんなふうに。</p>
-            {EXAMPLES.map((ex) => (
+            {(scanReportId ? EXAMPLES_FROM_SCAN : EXAMPLES).map((ex) => (
               <button key={ex} type="button" className="example" onClick={() => send(ex)}>
                 {ex}
               </button>

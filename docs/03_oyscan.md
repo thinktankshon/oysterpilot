@@ -19,6 +19,14 @@ PC 向け。地図（地理院タイル）で中津沖のポイントを選ぶ�
 - 取得は**ビルド時／デプロイ時に1回**（`scripts/fetch_jma.ts` → `apps/api/data/suonada.json`）。実行時に気象庁へリクエストしない。日次更新は不要（デモ用）。
 - 海域番号表：https://ds.data.jma.go.jp/kaiyou/data/db/kaikyo/series/engan/eg_areano.html （623 = 周防灘）
 
+## 実装メモ（11/2 追記）
+
+- 周防灘の内外判定は簡易矩形：北緯 33.5〜34.1、東経 130.9〜131.9（`apps/api/src/scan.ts`）。縁（関門側・伊予灘側）は粗い。
+- 地図は MapLibre GL JS ＋ 地理院タイル「淡色地図」（`https://cyberjapandata.gsi.go.jp/xyz/pale/{z}/{x}/{y}.png`）。初期表示は中心 33.62N 131.25E、ズーム 9.5、ピンなし。
+- 集計は「データ最終日の年を除く直近 5 年（完全な年）」。2026-11 時点は 2021〜2025。
+- 画面はクリック直後に指標 3 つと直近水温を出し（`/api/scan/evaluate`、即時）、所見（`/api/scan/report`、数秒）はあとから同じパネルに追記する 2 段階。所見の保存 ID で `/oysterman?from=scan&report=<id>` に引き継ぐ。
+- 所見はサーバーで禁止表現（必ず／安全です／最適です／予測・予報／死にます）と実在名を検査し、1 回だけ書き直させる。
+
 ## 判定ルール（`config/rules.yaml` の `oyscan` セクションを使う）
 
 直近5年（データのある範囲）で集計：

@@ -227,3 +227,20 @@ export type ChatResponse = {
   reservation: { id?: number; due_date: string; work: string; reason: string; location_label: string | null } | null;
   context: { env: EnvMetrics; lots: BriefLot[]; today_priority: string[] };
 };
+
+// ---- Oyscan ----
+export type ScanMetrics = {
+  area_no: number;
+  area_name: string;
+  years: number[];
+  hot_risk: { level: 'low' | 'mid' | 'high'; years_with_streak: number; max_streak_days: number; threshold_c: number; streak_days: number };
+  cold_period: { avg_days: number; threshold_c: number };
+  growth_period: { avg_days: number; band_c: [number, number] };
+  recent: { mean7: number | null; as_of: string; vs5y: EnvMetrics['vs5y'] };
+  season: EnvMetrics['season'];
+  season_label: string;
+  source: string;
+  stats_period: string;
+};
+export type ScanEvaluate = { supported: boolean; lat: number; lng: number; metrics: ScanMetrics };
+export type ScanReport = { id: number; report_text: string; metrics: ScanMetrics; lat?: number; lng?: number };

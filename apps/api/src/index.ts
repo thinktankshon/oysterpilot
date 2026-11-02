@@ -3,6 +3,7 @@ import { WORK_TYPES, type Bindings, type RecordRow, type ReservationRow } from '
 import { voysy } from './voysy';
 import { segments } from './segments';
 import { oysterman } from './oysterman';
+import { scan } from './scan';
 import { computeEnv, getSuonada } from './env';
 import { getRulesConfig } from './rulesConfig';
 import { getLotSummary, todayJst } from './lot';
@@ -28,6 +29,8 @@ app.route('/voysy', voysy);
 app.route('/segments', segments);
 // AI Oysterman: /api/oysterman/chat
 app.route('/oysterman', oysterman);
+// Oyscan: /api/scan/evaluate, /api/scan/report
+app.route('/scan', scan);
 
 // GET /api/env/suonada  周防灘の水温指標（docs/04）
 app.get('/env/suonada', (c) => c.json(computeEnv(getSuonada(), getRulesConfig().thresholds)));
