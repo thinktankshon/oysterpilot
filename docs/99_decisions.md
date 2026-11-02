@@ -15,3 +15,7 @@ Claude Code が docs にない判断をしたら、ここに1行で追記する�
 - 2026-11-02 seed は `scripts/seed.ts` が CSV から SQL を生成し `wrangler d1 execute --file` で投入（`source='seed'` を一度消してから入れ直すので何度でも実行可）。Node 26 の TS 直接実行を使い、ビルド不要
 - 2026-11-02 パッケージ管理は pnpm 12（`minimumReleaseAge` により公開1日未満の版は拒否されるため wrangler / workers-types は固定版）
 - 2026-11-02 公開 URL は `https://oysterpilot.oysterpilot-api.workers.dev`（Cloudflare アカウントの workers.dev サブドメインが `oysterpilot-api`）。D1 `oysterpilot`（APAC）作成・スキーマ・seed 投入済み
+- 2026-11-02 Voysy の構造化は tool use ではなく Claude の構造化出力（`output_config.format` = JSON Schema）で強制する。tool 強制（`tool_choice`）は新しいモデルで非対応のため。モデルは `claude-haiku-5-5`、thinking off・effort low（実測 1.4〜2.6 秒）。
+- 2026-11-02 `prompts/voysy_extract.md` と `config/glossary.yaml` は wrangler の Text ルールで Worker に文字列 import し、プロンプトの正本をファイルのまま使う（コードに複製しない）。
+- 2026-11-02 `/api/voysy/extract` はモデル出力を検証したうえで、null の項目を必ず `missing` に加える（確認表示の抜け防止）。`notes` は発話者の言葉なので断定表現フィルタの対象外。`notes` は records に列がないため保存せず、`raw_text` に全文として残す。
+- 2026-11-02 整理（Claude 呼び出し）が失敗しても記録は残せるよう、確認画面に「手で入力して保存」を置く。未送信（VO-06）はネットワーク断と 5xx のみ対象、4xx は再送しない。

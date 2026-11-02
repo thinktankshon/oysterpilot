@@ -1,5 +1,6 @@
 import { Hono } from 'hono';
 import { WORK_TYPES, type Bindings, type RecordRow, type ReservationRow } from './types';
+import { voysy } from './voysy';
 
 const app = new Hono<{ Bindings: Bindings }>().basePath('/api');
 
@@ -15,6 +16,9 @@ app.use('*', async (c, next) => {
 });
 
 app.get('/health', (c) => c.json({ ok: true, time: new Date().toISOString() }));
+
+// Voysy: POST /api/voysy/extract
+app.route('/voysy', voysy);
 
 // GET /api/records?line=3&tier=上段&limit=10
 app.get('/records', async (c) => {

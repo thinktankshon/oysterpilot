@@ -4,6 +4,7 @@
   "main": "src/index.ts",
   "compatibility_date": "2026-09-01",
   "compatibility_flags": ["nodejs_compat"],
+  "rules": [{ "type": "Text", "globs": ["**/*.md", "**/*.yaml"], "fallthrough": true }],
   "observability": { "enabled": true },
   // フロント（Vite の build 成果物）を同じ Worker から配信する。/api/* だけ Worker が処理する。
   "assets": {

@@ -13,6 +13,7 @@
     "seed": "node ../../scripts/seed.ts ../../data/seed_records.csv > .seed.sql && wrangler d1 execute oysterpilot --remote --file .seed.sql"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "1.3.0",
     "hono": "^4.13.16"
   },
   "devDependencies": {
