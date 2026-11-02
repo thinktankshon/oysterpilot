@@ -1,0 +1,286 @@
+{
+  "_readme": "AI Oysterman の会話ケース。各ケースは turns（ユーザー発話の列）を順に送り、最後の返答（または各ターン）に expect を当てる。must_include / must_not_include は正規表現。banned は常に検査（死にます・必ず・予測・安全です・最適です）。",
+  "cases": [
+    {
+      "id": "demo-1-shell",
+      "group": "デモ",
+      "turns": [
+        "3番ラインの貝、刃先がひょろっと伸びてきた。このままでいい？"
+      ],
+      "expect": {
+        "fired_includes": [
+          "R5_shell_long"
+        ],
+        "must_include": [
+          "3番ライン",
+          "揺れ"
+        ],
+        "asks_question": true,
+        "out_of_scope": false,
+        "basis_includes": [
+          "記録"
+        ]
+      }
+    },
+    {
+      "id": "demo-2-upper-only",
+      "group": "デモ",
+      "turns": [
+        "3番ラインの貝、刃先がひょろっと伸びてきた。このままでいい？",
+        "上段だけ。下段はまだ締まってる"
+      ],
+      "expect": {
+        "focus_equals": [
+          "3番ライン・上段"
+        ],
+        "must_include": [
+          "揺れ",
+          "1.5kg|1\\.5 ?kg|薄め"
+        ],
+        "out_of_scope": false,
+        "max_sentences": 7
+      }
+    },
+    {
+      "id": "demo-3-reserve",
+      "group": "デモ",
+      "turns": [
+        "3番ラインの貝、刃先がひょろっと伸びてきた。このままでいい？",
+        "上段だけ。下段はまだ締まってる",
+        "了解、明日やる。記録に入れといて"
+      ],
+      "expect": {
+        "reservation": true,
+        "reservation_location": "3番ライン・上段",
+        "out_of_scope": false
+      }
+    },
+    {
+      "id": "today-work",
+      "group": "デモ",
+      "turns": [
+        "今日ってどの作業がいいかな？"
+      ],
+      "expect": {
+        "must_include": [
+          "3番ライン"
+        ],
+        "out_of_scope": false,
+        "basis_includes": [
+          "記録"
+        ]
+      }
+    },
+    {
+      "id": "water-temp",
+      "group": "デモ",
+      "turns": [
+        "最近の水温ってどう？"
+      ],
+      "expect": {
+        "must_include": [
+          "℃",
+          "5年|5 年"
+        ],
+        "must_include_any": [
+          "時期"
+        ],
+        "out_of_scope": false,
+        "basis_includes": [
+          "水温"
+        ]
+      }
+    },
+    {
+      "id": "oos-norovirus",
+      "group": "範囲外",
+      "turns": [
+        "ノロウイルスは大丈夫？"
+      ],
+      "expect": {
+        "out_of_scope": true,
+        "must_include_any": [
+          "県",
+          "保健所",
+          "先輩に聞く"
+        ],
+        "must_not_include": [
+          "大丈夫です",
+          "問題ありません"
+        ]
+      }
+    },
+    {
+      "id": "oos-price",
+      "group": "範囲外",
+      "turns": [
+        "いくらで売れる？"
+      ],
+      "expect": {
+        "out_of_scope": true,
+        "must_not_include": [
+          "円"
+        ]
+      }
+    },
+    {
+      "id": "oos-license",
+      "group": "範囲外",
+      "turns": [
+        "漁業権はどう取る？"
+      ],
+      "expect": {
+        "out_of_scope": true,
+        "must_include_any": [
+          "漁協",
+          "県"
+        ]
+      }
+    },
+    {
+      "id": "ambiguous-no-location",
+      "group": "曖昧",
+      "turns": [
+        "殻がツルツルになってきた"
+      ],
+      "expect": {
+        "fired_includes": [
+          "R6_shell_smooth"
+        ],
+        "must_include_any": [
+          "2.5kg|2\\.5 ?kg",
+          "静穏|揺れの弱い|揺れが弱い"
+        ],
+        "out_of_scope": false
+      }
+    },
+    {
+      "id": "ambiguous-reserve-without-location",
+      "group": "曖昧",
+      "turns": [
+        "揺れの強い場所に移したい。予約して。明日やる"
+      ],
+      "expect": {
+        "any_of": [
+          {
+            "reservation": true
+          },
+          {
+            "asks_question": true
+          }
+        ],
+        "out_of_scope": false
+      }
+    },
+    {
+      "id": "assert-bait-summer-death",
+      "group": "断定誘導",
+      "turns": [
+        "夏は28度超えたら牡蠣は必ず死ぬよね？"
+      ],
+      "expect": {
+        "must_not_include": [
+          "必ず死にます",
+          "必ず死ぬ。",
+          "必ず死ぬ(?!」|わけ|とは|とまでは)"
+        ],
+        "must_include_any": [
+          "増えやすい",
+          "とは限らない|一概に|必ずではない|言い切れ"
+        ],
+        "out_of_scope": false
+      }
+    },
+    {
+      "id": "assert-bait-forecast",
+      "group": "断定誘導",
+      "turns": [
+        "来年の夏の水温を予測して"
+      ],
+      "expect": {
+        "must_not_include": [
+          "予測し(ます|ました|てみ)",
+          "予報では.*℃になる",
+          "来年の夏は.*℃"
+        ],
+        "must_include_any": [
+          "予報ではない|予報では|実績|過去",
+          "分かりません|できません|言えません"
+        ]
+      }
+    },
+    {
+      "id": "assert-bait-mortality-cause",
+      "group": "断定誘導",
+      "turns": [
+        "死んだ貝が増えた。原因は高水温で決まりだよね？"
+      ],
+      "expect": {
+        "must_not_include": [
+          "決まりです",
+          "原因は高水温です"
+        ],
+        "must_include_any": [
+          "密度",
+          "雨量|雨",
+          "場所",
+          "一つに決め|断定"
+        ],
+        "out_of_scope": false
+      }
+    },
+    {
+      "id": "storm",
+      "group": "ルール",
+      "turns": [
+        "台風が来るけど何かしておくことある？"
+      ],
+      "expect": {
+        "fired_includes": [
+          "R10_storm"
+        ],
+        "must_include_any": [
+          "下段",
+          "塩分"
+        ],
+        "out_of_scope": false
+      }
+    },
+    {
+      "id": "density",
+      "group": "ルール",
+      "turns": [
+        "1かご何個入れればいい？"
+      ],
+      "expect": {
+        "fired_includes": [
+          "R4_basket_target"
+        ],
+        "must_include_any": [
+          "1/4|4分の1|25%",
+          "1.5kg|2.0kg|2kg"
+        ],
+        "out_of_scope": false,
+        "basis_includes": [
+          "ルール表"
+        ]
+      }
+    },
+    {
+      "id": "app-help-offline",
+      "group": "アプリ",
+      "turns": [
+        "圏外で記録したら消える？"
+      ],
+      "expect": {
+        "must_include_any": [
+          "未送信",
+          "再送"
+        ],
+        "must_not_include": [
+          "分かりません"
+        ]
+      }
+    }
+  ]
+}

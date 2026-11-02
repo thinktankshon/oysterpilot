@@ -26,9 +26,9 @@ Oyscan（海を診る）→ Voysy（海で記録する）→ AI Oysterman（海�
 
 | | Oyscan（海を診る） | Voysy（海で記録する） | AI Oysterman（海から学ぶ） |
 |---|---|---|---|
-| 一言 | 地図で海を選ぶと、水温から診断が出る | 船上で喋ると、記録に変わる | 作業の合間に、隣の先輩に聞くように相談する |
+| 一言 | 日本の海をクリックすると、水温と雨量から診断が出る | 船上で喋り続けるだけで、記録に変わる | 作業の合間に、隣の先輩に聞くように相談する |
 | 使う人・端末 | 自治体・漁協の担当者／PC | 生産者／iPhone | 生産者／スマホ・PC |
-| Claude の役割 | 集計値から所見を書く | 発話を項目に構造化する | 記録・水温・成立ルールを読んで言い回しと聞き返しを担う |
+| Claude の役割 | 集計値から所見を書く | 発話を項目に構造化し、足りない項目を聞き返す | 記録・水温・成立ルール・知識を読んで、伴走者として答える |
 
 ```
  Oyscan ──診断を引き継ぐ──▶ AI Oysterman ──作業予約──▶ Voysy の「今日の予定」
@@ -36,31 +36,43 @@ Oyscan（海を診る）→ Voysy（海で記録する）→ AI Oysterman（海�
                                  └────── 記録台帳（D1）◀── 区切りごとの発話を保存
 ```
 
-### Oyscan
+### Oyscan — 日本中の海を診る
 
-地図（地理院タイル）で周防灘の地点をクリックすると、気象庁の海面水温から 3 つの指標を即時に出し、Claude が 4〜6 文の所見を書きます。
+地図（地理院タイル）に本土沿岸 80 海域の点が出ます。海をクリックすると最寄りの海域を選び、気象庁の海面水温（沿岸海域の平均）と最寄り観測所の雨量から、直近 5 年の指標を即時に出します。
 
-- 高水温リスク（低／中／高）：28℃以上が 7 日以上続いた年が直近 5 年中に何年あったか
-- 生育が鈍る期間：10℃未満の日数の年平均
-- 成長しやすい期間：15〜25℃の日数の年平均
-- 直近 7 日平均と、5 年統計の同日との差
+- **斃死リスク 低／中／高**：28℃以上の日数と、6〜10 月に 1 日 50mm 以上降った日数の組み合わせ。高水温と大雨（低塩分）が重なる時期に斃死が増えやすいと報告されていることに基づく目安です。
+- **成長スピード 良／普／鈍**：15〜25℃の日数。10℃未満が長い海域は 1 段下げます。
+- **年間雨量**、直近 7 日平均と 5 年統計の同日との差、季節区分。
+- Claude が 4〜6 文の所見を書き、「AI Oysterman に引き継いで相談する」で渡せます。
 
-所見は「AI Oysterman に引き継いで相談する」で渡せます。判定は水温のみ。塩分・流れ・水深は要現地測定、出荷の安全は都道府県の検査結果で確認、と画面に明記しています。
+閾値は全国の分布を見て決めた目安で、`config/rules.yaml` にあります。判定は水温と雨量のみ。公開データを参考にした推察値で、同じ海域でも潮流や潮の当たり方、水深で変わること、塩分・流れ・水深は要現地測定であること、出荷の安全は都道府県の検査結果で確認することを画面に明記しています。
 
-### Voysy
+### Voysy — 海では喋るだけ、確認は陸で
 
-海では記録だけ、確認は陸で。「作業開始」を 1 回押せば、あとは喋りながら作業を続けられます。
+「作業開始」を 1 回押せば、あとは喋りながら作業を続けられます。
 
 - 「次のロット」などの合図語で記録を区切り、区切りごとの生の文をその場で保存（Claude は呼ばない。圏外なら端末に残して再送）
 - 「記録終了」の言葉、またはボタンで止める
-- 陸で「陸でチェック」を開くと、区切りごとの文を直し、「整理する」で Claude（`claude-haiku-5-5`、構造化出力）が作業・場所・ロット・サイズ・入数・斃死・かご数に整理。言っていない項目は赤で「確認：ロット番号は？」と出す
+- 陸で「陸でチェック」を開くと、区切りごとの文を直し、「整理する」で Claude（`claude-haiku-5-5`、JSON Schema の構造化出力）が作業・ロット・サイズ帯・斃死・かご数に整理。選別は複数のサイズ帯（30g×60個×10カゴ、40g×50個×30カゴ…）を帯ごとの記録として保存
+- 言っていない項目は赤で「確認：ロット番号は？」。ロット番号は `R8-K3`（令和 8 年度・3 回目の採苗）の型で読み、200g 超のサイズなど聞き間違いの疑いがある数字は空欄にして確認に回す
 - 短い記録は「1件だけ記録」（録音→確認→保存）でも入れられる
 
 音声認識はブラウザの Web Speech API（iPhone Safari）。Web アプリの制約で、最初の 1 タップと画面の点灯は必要です。
 
-### AI Oysterman
+### AI Oysterman — 伴走者
 
-「今日ってどの作業がいいかな？」「最近の水温ってどう？」「3番の貝、刃先が伸びてきた」。記録のある全場所と今日の予約、水温（5 年統計との差・季節区分）を読み、`config/rules.yaml` の 7 ルールをコード側で判定したうえで、Claude（`claude-sonnet-5-5`）が先輩の口調で答えます。判断に足りないことは 1 つだけ聞き返し、提案は「この作業を予約する」で Voysy の予定に書き戻します。ルールの範囲外（病気・衛生・販売など）は断定せず「先輩に聞く項目」に整理し、「専門家に相談する」を出します。
+「今日ってどの作業がいいかな？」「最近の水温ってどう？」「死んだ貝が増えてきた」「台風が来る」。場所を選ばせず、記録のある全場所と今日の予約、水温（5 年統計との差・季節区分）を読み、`config/rules.yaml` の 10 ルールをコードで判定したうえで、Claude（`claude-sonnet-5-5`）が先輩の口調で答えます。
+
+答えは 4 層に分けています。
+
+| 層 | 中身 | 置き場所 |
+|---|---|---|
+| ルール表 | 閾値と成立条件（R1〜R10）。数字の判断はここだけ | `config/rules.yaml` |
+| リブルの現場 | 現場の目安・作業規律・話し方（聞き取り 30 問） | `knowledge/reblue_views.md` |
+| 公開知見 | 文献・県水試・水産庁・海外普及資料の要点（出典つき） | `knowledge/digest.md`、`knowledge/notes_*.md` |
+| 範囲外 | 病気・衛生・貝毒・販売・法規・補助金。断定せず「先輩に聞く項目」に整理し、確認先の種類だけ言う | プロンプトの線引き |
+
+斃死の原因は断定せず、密度・水温・雨量・場所・時期・青潮や赤潮の順に「見てみましょう」と並べます。判断に足りないことは 1 つだけ聞き返し、提案は「この作業を予約する」で Voysy の予定に書き戻します。各返答の下に根拠の種別（記録・ルール表・リブルの現場・公開知見）を小さく表示します。想定質問 100 問（`knowledge/questions.md`）で検証し、禁止語 0・範囲外の判定は想定どおりでした（`knowledge/eval_2026-11-02.md`）。
 
 ## 3. ルール表と、なぜ「ルール ＋ Claude」なのか
 
@@ -69,33 +81,40 @@ Oyscan（海を診る）→ Voysy（海で記録する）→ AI Oysterman（海�
 | R1 | 28℃以上が 7 日以上 | 高水温が続いています。作業時間を短くして負担をかけない |
 | R2 | 10℃未満が 7 日以上 | 生育が鈍る時期。選別の間隔を少し空ける（30 日 → 45 日） |
 | R3 | 15〜25℃で、前回選別から 15 日以上 | かなり成長しているかも。殻の伸びや詰まりを見てみましょう |
-| R4 | 選別・入数の話題 | 次の選別は 1 かご 2.0kg 目安（高水温期・成長期は 1.5kg、揺れを抑えたいとき 2.5kg） |
+| R4 | 選別・入数の話題 | 入数はかご容量の 1/4 を目安に（15L で約 1.5kg、25L で約 2.0kg） |
 | R5 | 殻（刃先）が伸びている | 揺れが足りていない合図。揺れの強い場所へ、入数は薄めに |
 | R6 | 殻がツルツル | 揺れが強すぎる合図。静穏な場所へ、入数を上げる |
-| R7 | 前回選別から目安日数を超えた | 選別しましょう（R1 と同時なら「手早く」） |
+| R7 | 前回選別から目安日数を超えた | 貝をチェックする目安を過ぎています。殻の形と詰まりを見て、必要なら選別 |
+| R8 | 前回の選別で斃死 20% 以上 | 多めです。原因は一つに決めず、密度・水温・雨量・場所・時期・青潮や赤潮の順に |
+| R9 | 直近 7 日平均 26℃以上 | 陸上の作業は短く、陸揚げ→選別→かご詰め→沖出しを 1 日で完結 |
+| R10 | 台風・大雨の話題 | 前はラックを下段へ。通過後は塩分と貝の色を見て、直後の選別は避ける |
 
-閾値は `config/rules.yaml` にあり、コードに埋め込んでいません。**数字の判断は LLM に任せず**、コードが「いま成立しているルール」を決めてから Claude に渡します。Claude が担うのは、記録の数字を引用した言い回し、聞き返し、予約の構造化です。ルールは人が読めて直せる形で残し、「死にます」「必ず」「予測」のような断定は使わない方針をプロンプトとサーバー側の検査の両方で守っています。
+閾値は `config/rules.yaml` にあり、コードに埋め込んでいません。**数字の判断は LLM に任せず**、コードが「いま成立しているルール」を決めてから Claude に渡します。Claude が担うのは、記録の数字を引用した言い回し、聞き返し、予約の構造化です。ルールは人が読めて直せる形で残し、「死にます」「必ず」「予測」のような断定は使わない方針をプロンプトとサーバー側の検査の両方で守っています。文献とリブルの見解が食い違うところ（干出の付着抑制効果など）は現場を優先し、文献は「海域によるとの報告」と添えます。
 
 ## 4. 使ったデータと出典
 
-- 気象庁「日本沿岸域の海面水温情報」海域 623 周防灘。日別（2016 年〜）と 5 年統計（平均・最高・最低）。`scripts/fetch_jma.ts` で取得して同梱し、実行時に気象庁へアクセスしません。
+- 気象庁「日本沿岸域の海面水温情報」：沿岸海域 98 区分の日別（2016 年〜）と 5 年統計。`scripts/fetch_scan_areas.ts` で取得して同梱。
+- 気象庁「過去の気象データ」：気象官署 33 か所の日降水量 5 年分。各海域は最寄り 2 観測所の距離加重平均。
 - 地図：国土地理院 地理院タイル（淡色地図）。
+- 公開知見：水産庁、都道府県水産試験場（広島・岡山・三重・岩手・佐賀・熊本・福岡・大分ほか）、宮城県の三倍体ガイドライン、海外の普及資料（Auburn 大学、BIM、NSW DPI、タスマニア大学ほか）、査読論文。出典は `knowledge/notes_*.md` に URL つきで列挙。
 - 作業記録のサンプル（`data/seed_records.csv`）は合成データです。実在の漁場名・実績データは含みません。
 
-> 出典：気象庁「日本沿岸域の海面水温情報」（海域 623 周防灘）を加工して株式会社リブル作成。水温は海域全体の平均値（実績値）で、湾奥の個別地点とは異なります。予報ではありません。
+> 出典：気象庁「日本沿岸域の海面水温情報」（沿岸海域の平均・実績値）、気象庁「過去の気象データ」（気象官署の日降水量）を加工して株式会社リブル作成。水温は海域全体の平均値、雨量は最寄りの観測所の値で、個別地点の値とは異なります。予報ではありません。
 > 地図：国土地理院 地理院タイル。
-> 本診断は水温のみに基づく参考情報です。出荷の安全（貝毒・衛生基準）は都道府県の検査結果でご確認ください。
+> 本診断は水温と雨量のみに基づく参考情報です。出荷の安全（貝毒・衛生基準）は都道府県の検査結果でご確認ください。
 
 ## 5. 技術構成
 
-- フロント：Vite + React（1 つの SPA、3 画面）。地図は MapLibre GL JS。音声は Web Speech API。
+- フロント：Vite + React（1 つの SPA、3 画面）。地図は MapLibre GL JS（Oyscan を開いたときだけ読み込み）。音声は Web Speech API。
 - API：Hono on Cloudflare Workers。フロントも同じ Worker から配信（Static Assets）。台帳は Cloudflare D1。
-- Claude API：`claude-haiku-5-5`（Voysy の構造化、JSON Schema による構造化出力）、`claude-sonnet-5-5`（AI Oysterman の会話、Oyscan の所見）。予約と範囲外判定は tool use で構造化。API キーは Workers の secret にのみ置き、フロントに出しません。
+- Claude API：`claude-haiku-5-5`（Voysy の構造化、JSON Schema による構造化出力）、`claude-sonnet-5-5`（AI Oysterman の会話、Oyscan の所見）。予約と範囲外判定は tool use で構造化。知識を含む約 1.5 万トークンのシステムプロンプトはプロンプトキャッシュに載せ、毎回送るのは記録・水温・成立ルールの約 900 トークンだけ。API キーは Workers の secret にのみ置き、フロントに出しません。
 - 共有パスワード：`X-Demo-Key` ヘッダ。審査用の簡易保護です。
+- テスト：ルール判定と場所解決の単体テスト 13 件（`pnpm test`）。会話評価 16 ケース（デモ・範囲外・曖昧・断定誘導、`pnpm eval`、16/16）。想定質問 100 問の一括検証。
+- 開発の仕組み（Claude Code）：用語と言い回しのスキル `.claude/skills/oyster-glossary`、ルール表の矛盾を検出するエージェント `.claude/agents/rules-reviewer`、実名・秘密情報を止めるコミット前フック（`.githooks/pre-commit`、Claude Code の `git commit` 直前にも同じ検査）。判断の記録は `docs/99_decisions.md`。
 
 ## 6. セットアップ
 
-要件は `docs/`、Claude Code への指示は `CLAUDE.md`、判断の記録は `docs/99_decisions.md`。
+要件は `docs/`、Claude Code への指示は `CLAUDE.md`、判断の記録は `docs/99_decisions.md`、知識は `knowledge/`。
 
 ```
 pnpm i
@@ -103,9 +122,15 @@ cp apps/api/.dev.vars.example apps/api/.dev.vars   # ANTHROPIC_API_KEY, DEMO_KEY
 pnpm -C apps/api d1:migrate:local && pnpm -C apps/api seed:local
 pnpm dev                                             # web(5173) + api(8787)。/api は Vite が 8787 へ中継
 pnpm test                                            # ルール判定の単体テスト
+pnpm eval                                            # 会話評価（ローカル API に 16 ケースを流す。EVAL_URL/DEMO_KEY で本番も可）
 ```
 
-水温データの更新（任意）：`pnpm -C apps/api fetch:jma`
+データの更新（任意。気象庁から取り直して同梱 JSON を作り直す）：
+
+```
+node scripts/fetch_jma.ts            # 周防灘の日別（AI Oysterman の水温コンテキスト）
+node scripts/fetch_scan_areas.ts     # 全国の海域指標と雨量（Oyscan）。取得結果は .cache/ に保存
+```
 
 デプロイ（初回は `wrangler login` → `pnpm -C apps/api d1:create` → `wrangler.jsonc` の `database_id` を置換）：
 
@@ -118,13 +143,13 @@ pnpm deploy
 
 ## 7. 1 週間で割り切ったこと／今後の展開
 
-割り切ったこと：対応海域は周防灘のみ、判定は水温のみ、認証は共有パスワード、会話履歴はブラウザ内だけ、周防灘の内外判定は矩形。
+割り切ったこと：Oyscan の判定は水温と雨量のみで、地点→海域は最寄り中心点の簡易判定。認証は共有パスワード。会話履歴はブラウザ内だけ。合図語は固定の一覧。
 
 今後の展開：
 
 - 完全ハンズフリー：言葉だけで録音を開始し、ポケットの中でも認識し続ける（ネイティブアプリの領域）
-- 推移グラフ、塩分・流れ・安全性（貝毒・衛生）の診断、全国の海域への対応
-- 音声での相談、作業規律の追加（ルール表を現場ごとに育てる）
+- 推移グラフ、殻高の記録、塩分・流れ・安全性（貝毒・衛生）の診断、離島を含む全海域、潮流の考慮
+- 音声での相談、作業規律の追加（ルール表と「リブルの見解」を現場ごとに育てる）
 
 ## 8. ライセンス・作者
 
@@ -150,34 +175,34 @@ Oysters need no feed and no fresh water, and farmed bivalves are among the lowes
 
 | | Oyscan | Voysy | AI Oysterman |
 |---|---|---|---|
-| In one line | Click the sea on a map and get a water‑temperature diagnosis | Talk on the boat and it becomes a record | Ask like you would ask a senior farmer next to you |
+| In one line | Click any coast of Japan and get a diagnosis from water temperature and rainfall | Keep talking while you work; it becomes records | Ask like you would ask a senior farmer next to you |
 | Who / device | Municipal or co‑op staff / PC | Farmers / iPhone | Farmers / phone or PC |
-| Claude's role | Writes the findings from aggregated numbers | Structures speech into record fields | Phrases advice and asks one follow‑up question from records, temperature and fired rules |
+| Claude's role | Writes the findings from aggregated numbers | Structures speech into record fields and asks about missing ones | Answers as a companion from records, temperature, fired rules and a knowledge base |
 
-**Oyscan.** Click a point in Suo‑nada on a GSI map. Three indicators appear instantly from JMA sea‑surface temperature: heat risk (years in the last five with 7+ consecutive days at or above 28°C), slow‑growth period (days below 10°C per year), and growth period (days at 15–25°C per year), plus the last 7‑day mean against the 5‑year statistics. Claude then writes a short finding, which can be handed to AI Oysterman. Temperature only; salinity, current and depth must be measured on site, and food‑safety clearance comes from the prefecture.
+**Oyscan.** A map of Japan shows 80 coastal sea areas as dots. Click the sea and the nearest area is selected. From five years of JMA sea‑surface temperature (area averages) and daily rainfall at the nearest JMA stations, three indicators appear instantly: **mortality risk (low/mid/high)** from days at or above 28°C combined with heavy‑rain days (≥50 mm) in June–October; **growth speed (good/normal/slow)** from days at 15–25°C, lowered when days below 10°C are many; and annual rainfall, plus the last 7‑day mean against the 5‑year statistics. Claude then writes a 4–6 sentence finding that can be handed to AI Oysterman. Thresholds live in `config/rules.yaml` and were set from the nationwide distribution. The page states that the values are estimates from public data, that conditions differ within an area by current, exposure and depth, and that food‑safety clearance comes from the prefecture.
 
-**Voysy.** Record at sea, review on land. Tap "Start work" once, then keep talking while you work. Cue words such as "next lot" split records; each segment's raw transcript is saved immediately (no LLM call; queued offline if out of range). Say "end recording" or tap to stop. On land, open "Review", fix the text if needed, and "Organize": Claude (`claude-haiku-5-5`, structured output) extracts work type, location, lot, size, count per basket, mortality and basket count, and flags anything not spoken in red ("Check: lot number?"). Speech runs on the browser's Web Speech API (iPhone Safari); one tap and a lit screen are required.
+**Voysy.** Record at sea, review on land. Tap "Start work" once and keep talking. Cue words such as "next lot" split records; each segment's raw transcript is saved immediately (no LLM call; queued offline if out of range). Say "end recording" or tap to stop. On land, open "Review", fix the text, and "Organize": Claude (`claude-haiku-5-5`, JSON‑Schema structured output) extracts work type, lot (`R8-K3` = fiscal year R8, third spat batch), size bands (30 g × 60 per basket × 10 baskets, 40 g × 50 × 30 …), mortality and basket counts. Each size band becomes its own record. Missing fields are flagged in red; implausible numbers (e.g. a 330 g oyster from a misheard "30") are blanked for confirmation.
 
-**AI Oysterman.** "What should I do today?", "How is the water lately?", "The shells on line 3 are growing thin edges." It reads every location's records, today's reservations and the temperature context (difference from the 5‑year mean, season band), evaluates the seven rules in `config/rules.yaml` in code, and Claude (`claude-sonnet-5-5`) answers in the voice of a senior farmer, asking at most one follow‑up question. Proposals can be reserved into Voysy's "today's plan". Out‑of‑scope topics (disease, hygiene, sales) are summarized as "questions for a senior" with a "consult an expert" button, never answered with certainty.
+**AI Oysterman.** "What should I do today?", "How is the water lately?", "More oysters are dying", "A typhoon is coming." No location selector: it reads every location's records, today's reservations and the temperature context, evaluates ten rules in code, and Claude (`claude-sonnet-5-5`) answers in the voice of a senior farmer and companion. Answers draw on four layers: the rule table (the only place numbers are judged), Re:Blue's field practice (30 interview answers), public knowledge (prefectural research stations, the Fisheries Agency, extension material from Auburn, BIM, NSW DPI, Tasmania; cited in `knowledge/`), and out‑of‑scope topics (disease, hygiene, sales, licensing) that are handed to experts without assertion. It never states a single cause of mortality; it lists what to check. Each reply shows which layers it used. A 100‑question evaluation (`knowledge/eval_2026-11-02.md`) found no banned phrasing and correct out‑of‑scope handling.
 
 ## Rules + Claude
 
-Thresholds live in `config/rules.yaml`, not in code. Numeric judgment is never delegated to the LLM: code decides which rules fire, and Claude handles wording, follow‑up questions and structured reservations. Rules stay human‑readable and editable, and assertive phrasing ("will die", "always", "forecast") is banned by both the prompt and a server‑side check.
+Thresholds live in `config/rules.yaml`, not in code. Numeric judgment is never delegated to the LLM: code decides which rules fire, and Claude handles wording, follow‑up questions and structured reservations. Rules stay human‑readable and editable, and assertive phrasing ("will die", "always", "forecast") is banned by both the prompt and a server‑side check. Where literature and field practice differ (e.g. whether air exposure controls fouling), field practice leads and the literature is cited as "reported to vary by area".
 
 ## Data and attribution
 
-JMA "Coastal sea surface temperature" for area 623 (Suo‑nada), daily since 2016 and 5‑year statistics, fetched once by `scripts/fetch_jma.ts` and bundled (no runtime calls to JMA). Map tiles by the Geospatial Information Authority of Japan (GSI). Sample records in `data/seed_records.csv` are synthetic; no real farm names or performance data are included. The diagnosis is based on temperature only and is not a forecast.
+JMA coastal sea‑surface temperature for 98 areas (daily since 2016, 5‑year statistics) and daily precipitation at 33 JMA stations, fetched once by `scripts/fetch_scan_areas.ts` and bundled (no runtime calls to JMA). Map tiles by the Geospatial Information Authority of Japan (GSI). Sample records are synthetic; no real farm names or performance data. Diagnoses use temperature and rainfall only and are not forecasts.
 
 ## Stack
 
-Vite + React SPA, MapLibre GL JS, Web Speech API; Hono on Cloudflare Workers serving the SPA as static assets; Cloudflare D1; Claude API (`claude-haiku-5-5` for extraction with JSON‑Schema structured output, `claude-sonnet-5-5` for conversation and findings, tool use for reservations). The API key lives only in Workers secrets. A shared password (`X-Demo-Key`) protects the demo.
+Vite + React SPA, MapLibre GL JS (lazy‑loaded), Web Speech API; Hono on Cloudflare Workers serving the SPA as static assets; Cloudflare D1; Claude API (`claude-haiku-5-5` for extraction, `claude-sonnet-5-5` for conversation and findings, tool use for reservations, prompt caching for the ~15k‑token knowledge prompt). The API key lives only in Workers secrets. A shared password (`X-Demo-Key`) protects the demo. 13 unit tests for rule evaluation and location resolution, plus a 16‑case conversation evaluation (`pnpm eval`: demo, out‑of‑scope, ambiguity, assertion‑baiting; 16/16). Claude Code tooling in the repo: an `oyster-glossary` skill (terms and phrasing rules), a `rules-reviewer` agent (contradiction check for the rule table) and a pre‑commit hook that blocks real farm names and secrets.
 
 ## Setup
 
-See the Japanese section above; the commands are identical (`pnpm i`, local D1 migrate and seed, `pnpm dev`, `pnpm test`, `pnpm deploy`).
+See the Japanese section above; the commands are identical (`pnpm i`, local D1 migrate and seed, `pnpm dev`, `pnpm test`, `pnpm deploy`; `node scripts/fetch_scan_areas.ts` refreshes the nationwide dataset).
 
 ## Trade‑offs and what's next
 
-Scope was cut to one sea area, temperature‑only diagnosis, a shared password and in‑browser chat history. Next: fully hands‑free recording (voice‑triggered start, works in a pocket — a native app), trend charts, salinity/current/safety diagnostics, nationwide sea areas, and voice consultation.
+Scope was cut to temperature‑and‑rainfall diagnosis with nearest‑centroid area matching, a shared password, in‑browser chat history and a fixed cue‑word list. Next: fully hands‑free recording (voice‑triggered start, works in a pocket — a native app), trend charts and shell‑height records, salinity/current/safety diagnostics, remote islands and currents, voice consultation, and growing the rule table and field knowledge per farm.
 
 MIT License. Takuya Takahata, Re:Blue Inc.

@@ -12,8 +12,17 @@ import { getAllLotSummaries, locationLabel, resolveFocus, todayJst, type LotSumm
 import type { Bindings, ReservationRow } from './types';
 
 const CHAT_MODEL = 'claude-sonnet-5-5';
-// 言い回しの禁止（CLAUDE.md / rules.yaml tone）。返答に含まれたら1回だけ言い直させる
+// 言い回しの禁止（CLAUDE.md / rules.yaml tone）。返答に含まれたら1回だけ言い直させる。
+// ただし否定形（「必ず死ぬわけではありません」「予測はしません」）と、ユーザーの言葉の引用「…」は断定ではないので除外する。
 const FORBIDDEN = /死にます|必ず|予測/;
+function hasForbidden(text: string): boolean {
+  const t = text
+    .replace(/「[^」]*」/g, '')
+    .replace(/必ず(しも)?[^。！？\n]{0,20}?(ではありません|ではない|わけではな|とは限りません|とは限らない|言えません|言い切れません|決まっていません)/g, '')
+    .replace(/予測(は|を|も)?[^。！？\n]{0,10}?(しません|できません|ではなく|いたしません|は行いません)/g, '')
+    .replace(/死にます[^。！？\n]{0,10}?(とは限りません|とは言えません|とは限らない)/g, '');
+  return FORBIDDEN.test(t);
+}
 const FALLBACK_REPLY = 'うまく言葉にできませんでした。もう一度、状況を教えてください。';
 
 type ChatMessage = { role: 'user' | 'assistant'; content: string };
@@ -152,7 +161,7 @@ oysterman.post('/chat', async (c) => {
   try {
     let res = await callClaude(client, system, messages, tools);
     let collected = collect(res);
-    if (FORBIDDEN.test(collected.text)) {
+    if (hasForbidden(collected.text)) {
       res = await callClaude(
         client,
         system + '\n\n【注意】直前の返答に禁止表現（死にます／必ず／予測）が含まれていました。同じ内容を、断定しない言い方で言い直してください。',
@@ -161,7 +170,7 @@ oysterman.post('/chat', async (c) => {
       );
       collected = collect(res);
     }
-    reply = FORBIDDEN.test(collected.text) ? FALLBACK_REPLY : collected.text;
+    reply = hasForbidden(collected.text) ? FALLBACK_REPLY : collected.text;
     reservation = collected.reservation;
     if (collected.outOfScope) {
       outOfScope = true;

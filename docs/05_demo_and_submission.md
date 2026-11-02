@@ -56,13 +56,13 @@
 - [ ] 動画の音量・字幕・3分以内
 - [ ] 提出フォームの必須項目を一度下書きしておく
 
-## 提出フォーム用の説明文（案・11/2）
+## 提出フォーム用の説明文（案・11/3 更新）
 
 **200 字**
-牡蠣養殖を新しく始める人の前にある「判断できない・記録が残らない・相談相手がいない」の3つの壁を、3つのAIで取り払います。Oyscanは地図で海を選ぶと気象庁の水温から適地を診断。Voysyは船上で喋るだけで、Claudeが作業記録に整理。AI Oystermanは記録と水温を読み、現場の先輩のルールで次の作業を提案します。人の手でやってきた立ち上げ支援を、誰でも受けられる形にしました。
+牡蠣養殖を新しく始める人の前にある「判断できない・記録が残らない・相談相手がいない」の3つの壁を、3つのAIで取り払います。Oyscanは日本の海をクリックすると気象庁の水温と雨量から斃死リスクと成長スピードを診断。Voysyは船上で喋り続けるだけで、Claudeが作業記録に整理。AI Oystermanは記録・水温・現場のルールと知識を読み、伴走者として次の作業を提案します。
 
 **400 字**
-牡蠣は餌も淡水も要らない、環境負荷の低い動物性タンパク質です。しかし新しく始める人には3つの壁があります。その海で育つか判断できない、濡れた手と揺れる船では記録が残らない、シングルシード養殖は独特で相談相手がいない。OysterPilotは3つのAIで応えます。Oyscanは地図で周防灘の地点を選ぶと、気象庁の海面水温から高水温リスクや成長しやすい期間を即時に示し、Claudeが所見を書きます。Voysyは「作業開始」を1回押せば、あとは喋りながら作業するだけ。合図の言葉で区切った発話を陸でClaudeが作業・場所・サイズ・斃死に整理し、足りない項目は聞き返します。AI Oystermanは記録と予約、水温を読み、7つの現場ルールをコードで判定し、先輩の口調で次の作業を提案して台帳に戻します。数字の判断はLLMに任せず、ルールは人が読めて直せる形で残しました。
+牡蠣は餌も淡水も要らない、環境負荷の低い動物性タンパク質です。しかし新しく始める人には3つの壁があります。その海で育つか判断できない、濡れた手と揺れる船では記録が残らない、シングルシード養殖は独特で相談相手がいない。OysterPilotは3つのAIで応えます。Oyscanは全国80の沿岸海域を地図に出し、気象庁の水温と雨量から斃死リスクと成長スピードを3段階で示し、Claudeが所見を書きます。Voysyは「作業開始」を1回押せば、あとは喋りながら作業するだけ。合図の言葉で区切った発話を陸でClaudeが作業・ロット・サイズ帯・斃死に整理し、足りない項目は聞き返します。AI Oystermanは記録と水温を読み、現場ルールをコードで判定し、リブルの見解と出典つきの知見を根拠に、伴走者として次の作業を提案します。数字の判断はLLMに任せず、ルールは人が読めて直せる形で残しました。
 
 **English (100 words)**
-OysterPilot removes three walls for people starting single-seed oyster farming: not knowing whether a sea will grow oysters, not being able to keep records with wet hands on a boat, and having no one to ask. Oyscan diagnoses a sea from JMA water temperature on a map. Voysy lets farmers talk while they work; Claude turns the speech into structured records and asks about missing fields. AI Oysterman reads records, reservations and temperature, evaluates seven field rules in code, and answers like a senior farmer, writing plans back to the ledger. Rules stay human-readable; Claude handles the words.
+OysterPilot removes three walls for people starting single-seed oyster farming: not knowing whether a sea will grow oysters, not being able to keep records with wet hands on a boat, and having no one to ask. Oyscan maps 80 coastal areas of Japan and rates mortality risk and growth speed from JMA water temperature and rainfall. Voysy lets farmers keep talking while they work; Claude turns the speech into structured records and asks about missing fields. AI Oysterman reads records and temperature, evaluates ten field rules in code, draws on Re:Blue's practice and cited knowledge, and answers as a companion.

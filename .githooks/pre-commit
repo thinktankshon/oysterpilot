@@ -1,0 +1,40 @@
+#!/usr/bin/env bash
+# OysterPilot コミット前フック：実在名・既存システム名・秘密情報が staged に入っていないか検査する。
+# 有効化: git config core.hooksPath .githooks（pnpm i 時の prepare スクリプトで自動設定）
+set -u
+fail=0
+red() { printf '\033[31m%s\033[0m\n' "$1"; }
+
+# 1) 追加行に実在の漁場名・既存システム名（CLAUDE.md の禁止事項）
+#    例外：CLAUDE.md / docs/05 の禁止事項の説明、このフック、スキル・エージェントの説明文
+pattern='Oysmart|オイスマート|中津②|那佐|浅川'
+hits=$(git diff --cached -U0 --diff-filter=ACM -- . ':!CLAUDE.md' ':!docs/05_demo_and_submission.md' ':!.githooks/' ':!.claude/' \
+  | grep -E '^\+' | grep -vE '^\+\+\+' | grep -E "$pattern" || true)
+if [ -n "$hits" ]; then
+  red "✘ 実在の漁場名・既存システム名が含まれています（CLAUDE.md の禁止事項）:"
+  echo "$hits" | head -20
+  fail=1
+fi
+
+# 2) 秘密情報：API キー、共有パスワードの直書き
+secret='sk-ant-[A-Za-z0-9_-]{8,}|ANTHROPIC_API_KEY=sk-|DEMO_KEY=[^=\s][^\s]{3,}'
+shits=$(git diff --cached -U0 --diff-filter=ACM -- . ':!.githooks/' | grep -E '^\+' | grep -vE '^\+\+\+' | grep -E "$secret" | grep -vE 'sk-ant-\.\.\.|DEMO_KEY=$' || true)
+if [ -n "$shits" ]; then
+  red "✘ API キーまたは共有パスワードらしき文字列が含まれています:"
+  echo "$shits" | sed -E 's/(sk-ant-[A-Za-z0-9_-]{4})[A-Za-z0-9_-]+/\1…/g' | head -10
+  fail=1
+fi
+
+# 3) 秘密ファイルそのもの
+files=$(git diff --cached --name-only --diff-filter=ACM | grep -E '(^|/)\.dev\.vars(\..*)?$|(^|/)\.env(\..*)?$|\.seed\.sql$' | grep -vE '\.example$' || true)
+if [ -n "$files" ]; then
+  red "✘ 秘密情報を含むファイルが staged です:"
+  echo "$files"
+  fail=1
+fi
+
+if [ "$fail" -ne 0 ]; then
+  red "コミットを中止しました。該当箇所を直すか、意図的なら git commit --no-verify を使ってください（理由を docs/99_decisions.md に残すこと）。"
+  exit 1
+fi
+exit 0
