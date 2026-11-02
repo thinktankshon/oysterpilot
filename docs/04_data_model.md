@@ -20,6 +20,21 @@ CREATE TABLE records (
 );
 CREATE INDEX idx_records_loc ON records(location_line, location_tier, recorded_at);
 
+-- 0002_segments.sql（11/2 追加）
+ALTER TABLE records ADD COLUMN notes TEXT;      -- 備考（確認表で編集可）
+
+CREATE TABLE voice_segments (                   -- 作業セッションの区切り（生の文。陸で整理して records にする）
+  id            INTEGER PRIMARY KEY AUTOINCREMENT,
+  session_id    TEXT NOT NULL,                  -- 作業開始ごとの ID（端末で生成）
+  seq           INTEGER NOT NULL,               -- セッション内の順番
+  recorded_at   TEXT NOT NULL,                  -- 区切りが確定した時刻（JST）
+  raw_text      TEXT NOT NULL,
+  status        TEXT NOT NULL DEFAULT 'draft',  -- draft / done / deleted
+  record_id     INTEGER,                        -- 確定後の records.id
+  created_at    TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX idx_segments_status ON voice_segments(status, recorded_at);
+
 CREATE TABLE reservations (
   id            INTEGER PRIMARY KEY AUTOINCREMENT,
   due_date      TEXT NOT NULL,            -- YYYY-MM-DD
@@ -51,7 +66,10 @@ CREATE TABLE scan_reports (
 | Method | Path | 入力 | 出力 | 使う画面 |
 |---|---|---|---|---|
 | POST | `/api/voysy/extract` | `{text}` | 構造化 JSON（`01_voysy.md`） | Voysy |
-| POST | `/api/records` | 構造化 JSON ＋ `raw_text` | `{id}` | Voysy |
+| POST | `/api/records` | 構造化 JSON ＋ `raw_text` ＋ `notes` | `{id}` | Voysy |
+| POST | `/api/segments` | `{session_id, seq, recorded_at, raw_text}` | `{id}` | Voysy（作業中） |
+| GET | `/api/segments?status=draft` | | segments[] | Voysy（陸でチェック） |
+| PATCH | `/api/segments/:id` | `{raw_text?, status?, record_id?}` | `{ok}` | Voysy（陸でチェック） |
 | GET | `/api/records?line=3&tier=上段&limit=10` | | records[] | Voysy / Oysterman |
 | GET | `/api/records/summary?line=3&tier=上段` | | `{last_sort_at, days_since_last_sort, avg_weight_g, count_per_basket, basket_total_kg, mortality_recent}` | Oysterman |
 | GET | `/api/env/suonada` | | `{mean7, max7, min7, hot_streak, cold_streak, in_growth_band, as_of}` | Oysterman / Oyscan |

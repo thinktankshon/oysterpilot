@@ -20,7 +20,19 @@ export type RecordRow = {
   mortality: number | null;
   basket_count: number | null;
   raw_text: string;
+  notes: string | null;
   source: 'voysy' | 'seed';
+  created_at: string;
+};
+
+export type SegmentRow = {
+  id: number;
+  session_id: string;
+  seq: number;
+  recorded_at: string;
+  raw_text: string;
+  status: 'draft' | 'done' | 'deleted';
+  record_id: number | null;
   created_at: string;
 };
 

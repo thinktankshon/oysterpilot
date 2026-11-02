@@ -136,3 +136,25 @@ body {
   background: var(--ok); color: #fff; font-weight: 700; padding: 12px 20px; border-radius: 999px;
   box-shadow: 0 8px 24px rgba(0,0,0,0.2); z-index: 10; max-width: calc(100% - 32px); text-align: center;
 }
+
+/* 作業セッション・陸でチェック */
+.idle-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 16px; }
+.badge {
+  display: inline-block; min-width: 26px; margin-left: 8px; padding: 0 8px; border-radius: 999px;
+  background: var(--rec); color: #fff; font-size: 0.9rem; line-height: 26px; text-align: center;
+}
+.cue-hint { margin: 4px 0 0; text-align: center; color: var(--muted); font-size: 0.95rem; }
+.seg-count { font-size: 1.1rem; margin: 0 0 10px; color: var(--muted); }
+.seg-count strong { color: var(--brand-2); font-size: 1.6rem; margin: 0 4px; font-variant-numeric: tabular-nums; }
+.draft-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 12px; }
+.draft { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 12px 14px; }
+.draft-head { display: flex; justify-content: space-between; color: var(--muted); font-variant-numeric: tabular-nums; margin-bottom: 6px; }
+.draft-text {
+  width: 100%; font-family: inherit; font-size: 1.1rem; line-height: 1.5; color: var(--fg);
+  border: 2px solid var(--line); border-radius: 10px; padding: 8px 10px; resize: vertical; background: #fff;
+}
+.draft-actions { display: grid; grid-template-columns: 1fr auto; gap: 10px; margin-top: 10px; }
+.notes-input {
+  width: 100%; font-family: inherit; font-size: 1.05rem; line-height: 1.5; color: var(--fg);
+  border: 2px solid var(--line); border-radius: 10px; padding: 8px 10px; resize: vertical; background: #fff;
+}

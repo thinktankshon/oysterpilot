@@ -5,18 +5,25 @@ import {
   formatDate,
   formatDay,
   isRetryable,
+  jstNowIso,
   loadPending,
   locationLabel,
+  markSegmentDone,
   savePending,
+  sendPending,
   type ExtractResult,
-  type PendingRecord,
+  type PendingItem,
   type RecordInput,
   type RecordRow,
   type ReservationRow,
+  type SegmentInput,
+  type SegmentRow,
 } from '../lib/api';
 import { isSpeechSupported, startSpeech, type SpeechSession } from '../lib/speech';
+import { CUE_HINT, findCue } from '../lib/cues';
 
-type Phase = 'idle' | 'recording' | 'confirm' | 'review';
+// idle: 待機 / session: 作業セッション（ハンズフリー） / recording→confirm→review: 1件だけ記録 / drafts: 陸でチェック
+type Phase = 'idle' | 'session' | 'recording' | 'confirm' | 'review' | 'drafts';
 
 const WORK_TYPES = ['選別', '分殖', '沖出し', '陸揚げ', '揺らし', '移動', 'その他'];
 const TIERS = ['上段', '中段', '下段'];
@@ -61,16 +68,35 @@ export function Voysy() {
   const [result, setResult] = useState<ExtractResult>(EMPTY_RESULT);
   const [extracting, setExtracting] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [pending, setPending] = useState<PendingRecord[]>(() => loadPending());
+  const [pending, setPending] = useState<PendingItem[]>(() => loadPending());
   const [resending, setResending] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
+  // 作業セッション
+  const [segCount, setSegCount] = useState(0);
+  // 陸でチェック
+  const [drafts, setDrafts] = useState<SegmentRow[]>([]);
+  const [currentSegmentId, setCurrentSegmentId] = useState<number | null>(null);
   const sessionRef = useRef<SpeechSession | null>(null);
+  const sessionIdRef = useRef('');
+  const seqRef = useRef(0);
+  const wakeLockRef = useRef<WakeLockSentinel | null>(null);
+  const draftSavedRef = useRef<Map<number, string>>(new Map());
   const supported = isSpeechSupported();
 
   const showToast = (msg: string) => {
     setToast(msg);
     window.setTimeout(() => setToast(null), 2600);
   };
+
+  const loadDrafts = useCallback(async () => {
+    try {
+      const list = await api<SegmentRow[]>('/api/segments?status=draft');
+      setDrafts(list);
+      draftSavedRef.current = new Map(list.map((d) => [d.id, d.raw_text]));
+    } catch {
+      /* 一覧は前回のまま */
+    }
+  }, []);
 
   const loadRecent = useCallback(async () => {
     try {
@@ -84,24 +110,139 @@ export function Voysy() {
     } catch {
       setReservations([]);
     }
-  }, []);
+    await loadDrafts();
+  }, [loadDrafts]);
 
   useEffect(() => {
     void loadRecent();
   }, [loadRecent]);
 
-  // 録音中の経過秒数
+  // 録音中・作業中の経過秒数
   useEffect(() => {
-    if (phase !== 'recording') return;
+    if (phase !== 'recording' && phase !== 'session') return;
     setSeconds(0);
     const t = window.setInterval(() => setSeconds((s) => s + 1), 1000);
     return () => window.clearInterval(t);
   }, [phase]);
 
+  // VO-10: 作業中は画面を消さない（Wake Lock）。タブに戻ったときは取り直す
+  const requestWakeLock = useCallback(async () => {
+    try {
+      wakeLockRef.current = (await navigator.wakeLock?.request('screen')) ?? null;
+    } catch {
+      /* 非対応・低電力モードなどは諦める */
+    }
+  }, []);
+  const releaseWakeLock = () => {
+    void wakeLockRef.current?.release().catch(() => undefined);
+    wakeLockRef.current = null;
+  };
+  useEffect(() => {
+    if (phase !== 'session') return;
+    const onVis = () => {
+      if (document.visibilityState === 'visible') void requestWakeLock();
+    };
+    document.addEventListener('visibilitychange', onVis);
+    return () => document.removeEventListener('visibilitychange', onVis);
+  }, [phase, requestWakeLock]);
+
+  // ---------- 作業セッション（VO-10〜12） ----------
+
+  const commitSegment = async (text: string) => {
+    const t = cleanSegment(text);
+    if (!t) return;
+    seqRef.current += 1;
+    setSegCount(seqRef.current);
+    const input: SegmentInput = {
+      session_id: sessionIdRef.current,
+      seq: seqRef.current,
+      recorded_at: jstNowIso(),
+      raw_text: t,
+    };
+    try {
+      await api<{ id: number }>('/api/segments', { method: 'POST', body: JSON.stringify(input) });
+    } catch (e) {
+      if (isRetryable(e)) {
+        setPending(addPending({ kind: 'segment', input }));
+      } else {
+        setError(e instanceof Error ? pickErrorMessage(e.message) ?? e.message : String(e));
+      }
+    }
+  };
+
+  const finishSession = async (remaining: string) => {
+    await commitSegment(remaining);
+    releaseWakeLock();
+    const n = seqRef.current;
+    setPhase('idle');
+    showToast(n > 0 ? `${n}件を記録しました（陸でチェック）` : '記録はありませんでした');
+    await loadRecent();
+  };
+
+  const handleSessionText = (f: string, i: string) => {
+    const hit = findCue(f);
+    if (!hit) {
+      setFinalText(f);
+      setInterimText(i);
+      return;
+    }
+    const before = f.slice(0, hit.index);
+    const after = f.slice(hit.index + hit.length);
+    if (hit.type === 'split') {
+      void commitSegment(before);
+      sessionRef.current?.reset(after);
+      setFinalText(after);
+      setInterimText(i);
+    } else {
+      // 終了語：ここまでを保存して止める（終了語より後は捨てる）
+      sessionRef.current?.reset(before);
+      setFinalText(before);
+      setInterimText('');
+      sessionRef.current?.stop();
+    }
+  };
+
+  const startSession = () => {
+    setError(null);
+    if (!supported) {
+      setError('このブラウザは音声認識に対応していないため、作業セッションは使えません。「1件だけ記録」をお使いください。');
+      return;
+    }
+    sessionIdRef.current = `s-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`;
+    seqRef.current = 0;
+    setSegCount(0);
+    setFinalText('');
+    setInterimText('');
+    const session = startSpeech({
+      onText: handleSessionText,
+      onError: (msg) => setError(msg),
+      onEnd: (f) => {
+        sessionRef.current = null;
+        void finishSession(f);
+      },
+    });
+    if (!session) {
+      setError('音声認識を開始できませんでした。');
+      return;
+    }
+    sessionRef.current = session;
+    void requestWakeLock();
+    setPhase('session');
+  };
+
+  const stopSession = () => {
+    const s = sessionRef.current;
+    if (s) s.stop();
+    else void finishSession(finalText);
+  };
+
+  // ---------- 1件だけ記録（VO-01〜05, 07, 09） ----------
+
   const startRecording = () => {
     setError(null);
     setFinalText('');
     setInterimText('');
+    setCurrentSegmentId(null);
     if (!supported) {
       // VO-09: 非対応なら textarea に直接入力（iPhone のキーボード音声入力でも可）
       setDraft('');
@@ -148,19 +289,20 @@ export function Voysy() {
   };
 
   // VO-03: 整理する → /api/voysy/extract
-  const extract = async () => {
+  const extract = async (text: string) => {
     setError(null);
     setExtracting(true);
     try {
       const r = await api<ExtractResult>('/api/voysy/extract', {
         method: 'POST',
-        body: JSON.stringify({ text: draft }),
+        body: JSON.stringify({ text }),
       });
       setResult(r);
       setPhase('review');
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
       setError(pickErrorMessage(msg) ?? '整理に失敗しました。もう一度お試しください。');
+      setPhase('confirm');
     } finally {
       setExtracting(false);
     }
@@ -185,22 +327,35 @@ export function Voysy() {
     count_per_basket: result.count_per_basket,
     mortality: result.mortality,
     basket_count: result.basket_count,
+    notes: result.notes,
     raw_text: draft.trim() || '（手入力）',
   });
 
-  // VO-05 / VO-06: 保存。通信失敗なら未送信に残す
+  // VO-05 / VO-06 / VO-13: 保存。通信失敗なら未送信に残す。区切りから来たら確定にして次へ
   const save = async () => {
     setError(null);
     setSaving(true);
     const input = toInput();
+    const segId = currentSegmentId;
     try {
-      await api<{ id: number }>('/api/records', { method: 'POST', body: JSON.stringify(input) });
-      setPhase('idle');
+      const { id } = await api<{ id: number }>('/api/records', { method: 'POST', body: JSON.stringify(input) });
+      if (segId != null) await markSegmentDone(segId, id);
+      setCurrentSegmentId(null);
       showToast('保存しました');
       await loadRecent();
+      if (segId != null) {
+        const rest = (await api<SegmentRow[]>('/api/segments?status=draft').catch(() => [])).filter((d) => d.id !== segId);
+        setDrafts(rest);
+        if (rest.length > 0) {
+          organizeDraft(rest[0]);
+          return;
+        }
+      }
+      setPhase('idle');
     } catch (e) {
       if (isRetryable(e)) {
-        setPending(addPending(input));
+        setPending(addPending({ kind: 'record', input, segment_id: segId ?? undefined }));
+        setCurrentSegmentId(null);
         setPhase('idle');
         showToast('通信できないため、未送信に残しました');
       } else {
@@ -211,14 +366,14 @@ export function Voysy() {
     }
   };
 
-  // VO-06: 未送信の再送
+  // VO-06 / VO-12: 未送信の再送
   const resend = async () => {
     setResending(true);
-    const rest: PendingRecord[] = [];
+    const rest: PendingItem[] = [];
     let sent = 0;
     for (const p of pending) {
       try {
-        await api<{ id: number }>('/api/records', { method: 'POST', body: JSON.stringify(p.input) });
+        await sendPending(p);
         sent++;
       } catch (e) {
         if (isRetryable(e)) rest.push(p);
@@ -232,6 +387,46 @@ export function Voysy() {
     if (sent > 0) await loadRecent();
   };
 
+  // ---------- 陸でチェック（VO-13） ----------
+
+  const openDrafts = () => {
+    setError(null);
+    setPhase('drafts');
+    void loadDrafts();
+  };
+
+  const editDraft = (id: number, text: string) =>
+    setDrafts((list) => list.map((d) => (d.id === id ? { ...d, raw_text: text } : d)));
+
+  const persistDraft = async (d: SegmentRow) => {
+    const saved = draftSavedRef.current.get(d.id);
+    const text = d.raw_text.trim();
+    if (!text || text === saved) return;
+    try {
+      await api<{ ok: true }>(`/api/segments/${d.id}`, { method: 'PATCH', body: JSON.stringify({ raw_text: text }) });
+      draftSavedRef.current.set(d.id, text);
+    } catch (e) {
+      setError(e instanceof Error ? pickErrorMessage(e.message) ?? e.message : String(e));
+    }
+  };
+
+  const deleteDraft = async (id: number) => {
+    if (!window.confirm('この区切りを削除しますか？')) return;
+    try {
+      await api<{ ok: true }>(`/api/segments/${id}`, { method: 'PATCH', body: JSON.stringify({ status: 'deleted' }) });
+      setDrafts((list) => list.filter((d) => d.id !== id));
+    } catch (e) {
+      setError(e instanceof Error ? pickErrorMessage(e.message) ?? e.message : String(e));
+    }
+  };
+
+  const organizeDraft = (d: SegmentRow) => {
+    setDraft(d.raw_text.trim());
+    setCurrentSegmentId(d.id);
+    setPhase('confirm');
+    void extract(d.raw_text.trim());
+  };
+
   // いま空のままの missing 項目だけ「確認」に出す
   const openMissing = result.missing.filter((f) => {
     const v = result[f as keyof ExtractResult];
@@ -243,7 +438,7 @@ export function Voysy() {
       {phase === 'idle' && (
         <>
           <h1 className="title">Voysy</h1>
-          <p className="lead">ボタンを押して、作業を喋ってください。</p>
+          <p className="lead">海では喋るだけ。確認は陸で。</p>
 
           {pending.length > 0 && (
             <div className="pending">
@@ -253,6 +448,16 @@ export function Voysy() {
               </button>
             </div>
           )}
+
+          <div className="idle-row">
+            <button type="button" className="btn" onClick={openDrafts}>
+              陸でチェック
+              {drafts.length > 0 && <span className="badge">{drafts.length}</span>}
+            </button>
+            <button type="button" className="btn" onClick={startRecording}>
+              1件だけ記録
+            </button>
+          </div>
 
           <div className="card">
             <h2 className="card-title">直近の記録</h2>
@@ -291,15 +496,44 @@ export function Voysy() {
 
           {!supported && (
             <p className="notice">
-              このブラウザは音声認識に対応していません。ボタンを押すと入力欄が開きます（キーボードのマイクで音声入力できます）。
+              このブラウザは音声認識に対応していません。「1件だけ記録」を押すと入力欄が開きます（キーボードのマイクで音声入力できます）。
             </p>
           )}
           {error && <p className="error">{error}</p>}
 
           <div className="rec-area">
-            <button type="button" className="rec-button" onClick={startRecording} aria-label="録音開始">
+            <button type="button" className="rec-button" onClick={startSession} aria-label="作業開始">
               <span className="rec-dot" />
-              <span>録音</span>
+              <span>作業開始</span>
+            </button>
+          </div>
+          <p className="cue-hint">
+            「{CUE_HINT.split}」で区切り、「{CUE_HINT.stop}」で終了
+          </p>
+        </>
+      )}
+
+      {phase === 'session' && (
+        <>
+          <h1 className="title">
+            作業中 <span className="timer">{formatSeconds(seconds)}</span>
+          </h1>
+          <p className="lead">
+            「{CUE_HINT.split}」で区切り、「{CUE_HINT.stop}」で終了。
+          </p>
+          <div className="seg-count">
+            記録 <strong>{segCount}</strong> 件
+          </div>
+          <div className="transcript live" aria-live="polite">
+            {finalText}
+            <span className="interim">{interimText}</span>
+            {!finalText && !interimText && <span className="muted">（作業しながら話してください…）</span>}
+          </div>
+          {error && <p className="error">{error}</p>}
+          <div className="rec-area">
+            <button type="button" className="rec-button stop" onClick={stopSession} aria-label="記録終了">
+              <span className="stop-square" />
+              <span>記録終了</span>
             </button>
           </div>
         </>
@@ -345,12 +579,18 @@ export function Voysy() {
             </div>
           )}
           <div className="actions">
-            <button type="button" className="btn primary" onClick={extract} disabled={extracting || !draft.trim()}>
+            <button type="button" className="btn primary" onClick={() => extract(draft)} disabled={extracting || !draft.trim()}>
               {extracting ? '整理しています…' : '整理する'}
             </button>
-            <button type="button" className="btn" onClick={retake} disabled={extracting}>
-              もう一度話す
-            </button>
+            {currentSegmentId == null ? (
+              <button type="button" className="btn" onClick={retake} disabled={extracting}>
+                もう一度話す
+              </button>
+            ) : (
+              <button type="button" className="btn" onClick={openDrafts} disabled={extracting}>
+                一覧に戻る
+              </button>
+            )}
             <button type="button" className="btn ghost" onClick={() => setPhase('idle')} disabled={extracting}>
               やめる
             </button>
@@ -422,12 +662,19 @@ export function Voysy() {
                   <td>{numberInput(f, result, setField)}</td>
                 </tr>
               ))}
-              {result.notes && (
-                <tr>
-                  <th>備考</th>
-                  <td className="notes">{result.notes}</td>
-                </tr>
-              )}
+              {/* VO-14: メモは編集できる */}
+              <tr>
+                <th>メモ</th>
+                <td>
+                  <textarea
+                    className="notes-input"
+                    value={result.notes ?? ''}
+                    rows={2}
+                    placeholder="例：殻が伸びている"
+                    onChange={(e) => setField('notes', e.target.value || null)}
+                  />
+                </td>
+              </tr>
             </tbody>
           </table>
 
@@ -441,11 +688,56 @@ export function Voysy() {
             <button type="button" className="btn primary" onClick={save} disabled={saving}>
               {saving ? '保存しています…' : '保存'}
             </button>
-            <button type="button" className="btn" onClick={retake} disabled={saving}>
-              もう一度話す
-            </button>
+            {currentSegmentId == null ? (
+              <button type="button" className="btn" onClick={retake} disabled={saving}>
+                もう一度話す
+              </button>
+            ) : (
+              <button type="button" className="btn" onClick={openDrafts} disabled={saving}>
+                一覧に戻る
+              </button>
+            )}
             <button type="button" className="btn ghost" onClick={() => setPhase('confirm')} disabled={saving}>
               文字に戻る
+            </button>
+          </div>
+        </>
+      )}
+
+      {phase === 'drafts' && (
+        <>
+          <h1 className="title">陸でチェック</h1>
+          <p className="lead">区切りごとの文です。直してから「整理する」。</p>
+          {drafts.length === 0 && <p className="muted">未整理の記録はありません</p>}
+          <ul className="draft-list">
+            {drafts.map((d) => (
+              <li key={d.id} className="draft">
+                <div className="draft-head">
+                  <span>{formatDate(d.recorded_at)}</span>
+                  <span className="muted">#{d.seq}</span>
+                </div>
+                <textarea
+                  className="draft-text"
+                  value={d.raw_text}
+                  rows={3}
+                  onChange={(e) => editDraft(d.id, e.target.value)}
+                  onBlur={() => persistDraft(d)}
+                />
+                <div className="draft-actions">
+                  <button type="button" className="btn primary small" onClick={() => organizeDraft(d)}>
+                    整理する
+                  </button>
+                  <button type="button" className="btn ghost small" onClick={() => deleteDraft(d.id)}>
+                    削除
+                  </button>
+                </div>
+              </li>
+            ))}
+          </ul>
+          {error && <p className="error">{error}</p>}
+          <div className="actions">
+            <button type="button" className="btn ghost" onClick={() => setPhase('idle')}>
+              戻る
             </button>
           </div>
         </>
@@ -479,6 +771,16 @@ function numberInput(
       }}
     />
   );
+}
+
+/** 区切りの文を整える：前後の空白と句読点だけの残りを落とす */
+function cleanSegment(text: string): string {
+  return text.replace(/^[\s、。,.．]+|[\s、。,.．]+$/g, '').trim();
+}
+
+function formatSeconds(s: number): string {
+  const m = Math.floor(s / 60);
+  return `${m}:${String(s % 60).padStart(2, '0')}`;
 }
 
 /** API のエラー本文（JSON）から表示用メッセージだけ取り出す */

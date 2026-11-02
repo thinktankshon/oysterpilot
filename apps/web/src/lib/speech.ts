@@ -37,7 +37,11 @@ export type SpeechHandlers = {
   onEnd: (finalText: string) => void;
 };
 
-export type SpeechSession = { stop: () => void };
+export type SpeechSession = {
+  stop: () => void;
+  /** 確定済みの文を差し替える（区切りで保存した分を捨て、残りだけ持ち越す） */
+  reset: (keep: string) => void;
+};
 
 export function startSpeech(h: SpeechHandlers): SpeechSession | null {
   const Ctor = getCtor();
@@ -102,6 +106,9 @@ export function startSpeech(h: SpeechHandlers): SpeechSession | null {
       } catch {
         h.onEnd(finalText);
       }
+    },
+    reset: (keep: string) => {
+      finalText = keep;
     },
   };
 }

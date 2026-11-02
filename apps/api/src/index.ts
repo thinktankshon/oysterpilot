@@ -1,6 +1,7 @@
 import { Hono } from 'hono';
 import { WORK_TYPES, type Bindings, type RecordRow, type ReservationRow } from './types';
 import { voysy } from './voysy';
+import { segments } from './segments';
 
 const app = new Hono<{ Bindings: Bindings }>().basePath('/api');
 
@@ -19,6 +20,8 @@ app.get('/health', (c) => c.json({ ok: true, time: new Date().toISOString() }));
 
 // Voysy: POST /api/voysy/extract
 app.route('/voysy', voysy);
+// 作業セッションの区切り: /api/segments
+app.route('/segments', segments);
 
 // GET /api/records?line=3&tier=上段&limit=10
 app.get('/records', async (c) => {
@@ -59,8 +62,8 @@ app.post('/records', async (c) => {
   const str = (v: unknown) => (typeof v === 'string' && v.length ? v : null);
   const res = await c.env.DB.prepare(
     `INSERT INTO records (recorded_at, work_type, location_line, location_tier, lot_no,
-       avg_weight_g, count_per_basket, mortality, basket_count, raw_text, source)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'voysy')`,
+       avg_weight_g, count_per_basket, mortality, basket_count, raw_text, notes, source)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'voysy')`,
   )
     .bind(
       recordedAt,
@@ -73,6 +76,7 @@ app.post('/records', async (c) => {
       num(body.mortality),
       num(body.basket_count),
       body.raw_text,
+      str(body.notes),
     )
     .run();
   return c.json({ id: res.meta.last_row_id }, 201);

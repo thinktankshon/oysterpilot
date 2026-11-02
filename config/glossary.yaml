@@ -23,6 +23,8 @@ work_types:            # Voysy の work_type 正規化先
   - 揺らし
   - 移動
   - その他
+voice_cues_file: config/voice_cues.json   # 作業セッションの合図語（区切り・終了）。JSON なのは Web と Worker の両方が追加ライブラリなしで読むため
+
 aliases:               # 発話 → 正規化
   かご分け: 分殖
   カゴ分け: 分殖

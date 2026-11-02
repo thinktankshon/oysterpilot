@@ -98,7 +98,25 @@ export type ExtractResult = {
 };
 
 /** POST /api/records の本文 */
-export type RecordInput = Omit<ExtractResult, 'missing' | 'notes'> & { raw_text: string };
+export type RecordInput = Omit<ExtractResult, 'missing'> & { raw_text: string };
+
+/** 作業セッションの区切り（voice_segments） */
+export type SegmentRow = {
+  id: number;
+  session_id: string;
+  seq: number;
+  recorded_at: string;
+  raw_text: string;
+  status: 'draft' | 'done' | 'deleted';
+  record_id: number | null;
+};
+export type SegmentInput = Pick<SegmentRow, 'session_id' | 'seq' | 'recorded_at' | 'raw_text'>;
+
+/** JST の現在時刻 "YYYY-MM-DDTHH:mm:ss+09:00" */
+export function jstNowIso(): string {
+  const d = new Date(Date.now() + 9 * 60 * 60 * 1000);
+  return d.toISOString().replace(/\.\d{3}Z$/, '+09:00');
+}
 
 /** "YYYY-MM-DD" → "M/D" */
 export function formatDay(ymd: string): string {
@@ -109,29 +127,57 @@ export function formatDay(ymd: string): string {
 // ---- 未送信レコード（VO-06）：オフライン・5xx のときは localStorage に残して再送する ----
 const PENDING_STORAGE = 'oysterpilot.pendingRecords';
 
-export type PendingRecord = { key: string; created_at: string; input: RecordInput };
+export type PendingInput =
+  | { kind: 'record'; input: RecordInput; segment_id?: number }
+  | { kind: 'segment'; input: SegmentInput };
+export type PendingItem = PendingInput & { key: string; created_at: string };
 
-export function loadPending(): PendingRecord[] {
+export function loadPending(): PendingItem[] {
   try {
     const raw = localStorage.getItem(PENDING_STORAGE);
     const list = raw ? (JSON.parse(raw) as unknown) : [];
-    return Array.isArray(list) ? (list as PendingRecord[]) : [];
+    return Array.isArray(list) ? (list as PendingItem[]) : [];
   } catch {
     return [];
   }
 }
-export function savePending(list: PendingRecord[]) {
+export function savePending(list: PendingItem[]) {
   try {
     localStorage.setItem(PENDING_STORAGE, JSON.stringify(list));
   } catch {
     /* ignore */
   }
 }
-export function addPending(input: RecordInput): PendingRecord[] {
+export function addPending(item: PendingInput): PendingItem[] {
   const list = loadPending();
-  list.push({ key: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`, created_at: new Date().toISOString(), input });
+  list.push({
+    ...item,
+    key: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+    created_at: new Date().toISOString(),
+  });
   savePending(list);
   return list;
+}
+
+/** 未送信を1件送る。record に segment_id が付いていれば区切りも確定にする */
+export async function sendPending(item: PendingItem): Promise<void> {
+  if (item.kind === 'segment') {
+    await api<{ id: number }>('/api/segments', { method: 'POST', body: JSON.stringify(item.input) });
+    return;
+  }
+  const { id } = await api<{ id: number }>('/api/records', { method: 'POST', body: JSON.stringify(item.input) });
+  if (item.segment_id != null) await markSegmentDone(item.segment_id, id);
+}
+
+export async function markSegmentDone(segmentId: number, recordId: number): Promise<void> {
+  try {
+    await api<{ ok: true }>(`/api/segments/${segmentId}`, {
+      method: 'PATCH',
+      body: JSON.stringify({ status: 'done', record_id: recordId }),
+    });
+  } catch {
+    // 記録自体は保存済み。区切りの確定だけ失敗しても陸の一覧で削除できるので握りつぶす
+  }
 }
 
 /** 通信失敗（ネットワーク断・5xx）なら true。4xx は入力の問題なので再送しない */
