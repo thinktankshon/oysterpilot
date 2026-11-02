@@ -112,15 +112,20 @@ out_of_scope:
     - ユーザーが「分からない」「解決しない」と言ったとき
 
 oyscan:
-  # 直近5年（データのある範囲）で集計
-  hot_risk:
-    metric: 28℃以上が7日以上続いた期間があった年数（5年中）
-    levels: {low: 0, mid: [1, 2], high: 3}   # 0年=低 / 1-2年=中 / 3年以上=高
-  cold_period:
-    metric: 10℃未満の日数の年平均
-    label: 生育が鈍る期間：年間約{days}日
-  growth_period:
-    metric: 15〜25℃の日数の年平均
-    label: 成長しやすい期間：年間約{days}日
-  recent:
-    metric: 直近7日平均と、5年統計の同日 平均・最高・最低
+  # 全国版（2026-11-03）。データは scripts/fetch_scan_areas.ts がビルド時に作る apps/api/data/scan_areas.json。
+  # 集計期間は直近 5 年（データ最終日の年を除く）。閾値は全国 80 海域の分布を見て決めた目安（2026-11-03 高畑確定）。
+  heavy_rain_mm: 50                 # 「大雨の日」の基準（日降水量）
+  map_pick_radius_km: 150           # クリック地点からこの距離以内に海域の中心点が無ければ「未対応」
+  mortality_risk:                   # 斃死リスク 低／中／高 ＝ 高水温日数 × 大雨日数（6〜10 月）
+    hot_days_low_max: 10            # 28℃以上の日数（年平均）がこれ以下なら低（0点）、mid_max 以下なら中（1点）、超えたら高（2点）
+    hot_days_mid_max: 40
+    heavy_days_low_max: 3           # 6〜10 月の 50mm 以上の日数（年平均。最寄り2観測所の加重平均）がこれ以下なら低（0点）
+    heavy_days_mid_max: 6           # これ以下なら中（1点）、超えたら高（2点）
+    # 総合：2 軸の点数の合計。0〜1 点＝低、2 点＝中、3〜4 点＝高
+  growth_speed:                     # 成長スピード 良／普／鈍 ＝ 15〜25℃ の日数と 10℃未満の日数
+    growth_days_good_min: 200       # 15〜25℃ の日数（年平均）がこれ以上なら良
+    growth_days_slow_max: 120       # これ以下なら鈍
+    cold_days_penalty_min: 90       # 10℃未満の日数がこれ以上なら 1 段下げる
+  labels:
+    mortality_risk: {low: 低, mid: 中, high: 高}
+    growth_speed: {good: 良, normal: 普, slow: 鈍}

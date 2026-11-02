@@ -55,11 +55,10 @@ export function Oysterman() {
       void (async () => {
         try {
           const rep = await api<ScanReport>(`/api/scan/report/${scanReportId}`);
-          const m = rep.metrics;
-          const level = { low: '低', mid: '中', high: '高' }[m.hot_risk.level];
+          const ev = rep.evaluation;
           push({
             role: 'system',
-            text: `Oyscan の診断を引き継ぎました：高水温リスク ${level}（${m.hot_risk.threshold_c}℃以上が${m.hot_risk.streak_days}日以上の年が${m.years.length}年中${m.hot_risk.years_with_streak}年）・生育が鈍る期間 年間約${m.cold_period.avg_days}日・成長しやすい期間 年間約${m.growth_period.avg_days}日。「この海で始めるときの注意は？」と聞けます。`,
+            text: `Oyscan の診断を引き継ぎました（${ev.area.name}）：斃死リスク ${rep.labels.mortality_risk[ev.mortality_risk.level]}（28℃以上 年${ev.mortality_risk.hot_days_avg}日、6〜10月の大雨 年${ev.mortality_risk.heavy_days_jun_oct_avg ?? '—'}日）・成長スピード ${rep.labels.growth_speed[ev.growth_speed.level]}（15〜25℃ 年${ev.growth_speed.growth_days_avg}日、10℃未満 年${ev.growth_speed.cold_days_avg}日）。「この海で始めるときの注意は？」と聞けます。`,
           });
         } catch {
           push({ role: 'system', text: `Oyscan の診断（レポート #${scanReportId}）を引き継ぎました。この海で始めるときの注意を聞けます。` });

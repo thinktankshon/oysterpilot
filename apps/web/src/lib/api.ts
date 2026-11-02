@@ -277,22 +277,29 @@ export type ChatResponse = {
   context: { env: EnvMetrics; lots: BriefLot[]; today_priority: string[] };
 };
 
-// ---- Oyscan ----
-export type ScanMetrics = {
-  area_no: number;
-  area_name: string;
+// ---- Oyscan（全国版） ----
+export type Level3 = 'low' | 'mid' | 'high';
+export type Speed3 = 'good' | 'normal' | 'slow';
+export type ScanLabels = { mortality_risk: Record<Level3, string>; growth_speed: Record<Speed3, string> };
+export type ScanEvaluation = {
+  area: { no: number; name: string; lat: number | null; lng: number | null; stats_period: string; station: { name: string; lat: number; lng: number } | null };
+  distance_km: number;
   years: number[];
-  hot_risk: { level: 'low' | 'mid' | 'high'; years_with_streak: number; max_streak_days: number; threshold_c: number; streak_days: number };
-  cold_period: { avg_days: number; threshold_c: number };
-  growth_period: { avg_days: number; band_c: [number, number] };
-  recent: { mean7: number | null; as_of: string; vs5y: EnvMetrics['vs5y'] };
-  season: EnvMetrics['season'];
+  mortality_risk: { level: Level3; hot_level: Level3; heavy_level: Level3; hot_days_avg: number; heavy_days_jun_oct_avg: number | null; max_streak_days: number; years_with_streak: number };
+  growth_speed: { level: Speed3; growth_days_avg: number; cold_days_avg: number; penalized: boolean };
+  rain: { years_used: number; annual_mm_avg: number; heavy_days_avg: number; heavy_days_jun_oct_avg: number } | null;
+  recent: { mean7: number | null; as_of: string; vs5y_mean: number | null; vs5y_max: number | null; vs5y_min: number | null; diff: number | null };
   season_label: string;
-  source: string;
-  stats_period: string;
+  source: { sst: string; rain: string };
 };
-export type ScanEvaluate = { supported: boolean; lat: number; lng: number; metrics: ScanMetrics };
-export type ScanReport = { id: number; report_text: string; metrics: ScanMetrics; lat?: number; lng?: number };
+export type ScanAreasResponse = {
+  generated_at: string;
+  years: number[];
+  labels: ScanLabels;
+  areas: { no: number; name: string; lat: number; lng: number; mortality_risk: Level3; growth_speed: Speed3 }[];
+};
+export type ScanEvaluate = { supported: boolean; lat: number; lng: number; evaluation: ScanEvaluation; labels: ScanLabels };
+export type ScanReport = { id: number; report_text: string; evaluation: ScanEvaluation; labels: ScanLabels; lat?: number; lng?: number };
 
 /** 帯ごとの記録を一括保存（区切り ID があれば確定も同時に） */
 export async function saveRecords(inputs: RecordInput[], segmentId?: number): Promise<number[]> {

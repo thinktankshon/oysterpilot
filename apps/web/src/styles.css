@@ -230,3 +230,12 @@ body {
 }
 .th-note { display: block; font-weight: 400; font-size: 0.75rem; color: var(--muted); }
 .bubble .basis { margin-top: 8px; font-size: 0.78rem; color: var(--muted); }
+
+.area-name { font-size: 1.15rem; margin: 0; display: flex; flex-direction: column; gap: 2px; }
+.area-name small { font-size: 0.8rem; font-weight: 400; }
+.tile.speed-good .tile-value { color: var(--ok); }
+.tile.speed-normal .tile-value { color: var(--brand-2); }
+.tile.speed-slow .tile-value { color: var(--warn); }
+.legend { margin: 4px 0 0; color: var(--muted); font-size: 0.85rem; }
+.legend .dot { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin: 0 4px 0 8px; vertical-align: middle; border: 1px solid #fff; }
+.tile-note { margin: -4px 0 0; color: var(--muted); font-size: 0.82rem; line-height: 1.5; }
