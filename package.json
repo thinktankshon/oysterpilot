@@ -5,7 +5,8 @@
     "dev": "pnpm -r --parallel --stream dev",
     "build": "pnpm -C apps/web build",
     "typecheck": "pnpm -r typecheck",
-    "deploy": "pnpm build && pnpm -C apps/api deploy"
+    "deploy": "pnpm build && pnpm -C apps/api deploy",
+    "test": "pnpm -C apps/api test"
   },
   "packageManager": "pnpm@12.16.1"
 }

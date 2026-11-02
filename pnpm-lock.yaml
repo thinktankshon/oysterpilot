@@ -174,6 +174,9 @@ importers:
       hono:
         specifier: ^4.13.16
         version: 4.13.16
+      yaml:
+        specifier: 2.9.1
+        version: 2.9.1
     devDependencies:
       '@cloudflare/workers-types':
         specifier: 5.20261031.1
@@ -202,13 +205,13 @@ importers:
         version: 19.3.0(@types/react@19.3.0)
       '@vitejs/plugin-react':
         specifier: ^6.1.2
-        version: 6.1.2(vite@8.3.5(esbuild@0.28.2))
+        version: 6.1.2(vite@8.3.5(esbuild@0.28.2)(yaml@2.9.1))
       typescript:
         specifier: ^5.9.3
         version: 5.9.3
       vite:
         specifier: ^8.3.5
-        version: 8.3.5(esbuild@0.28.2)
+        version: 8.3.5(esbuild@0.28.2)(yaml@2.9.1)
 
 packages:
 
@@ -1040,6 +1043,11 @@ packages:
       utf-8-validate:
         optional: true
 
+  yaml@2.9.1:
+    resolution: {integrity: sha512-3NxN8+78OdzbT7C/WjGsyfPAtJaN3FNDsWxv7Y7mcDsT/oOmgW8BpyQQFFBnvZE3j9Y2Sdz1ULFLezL7Eb2yFw==}
+    engines: {node: '>= 14.6'}
+    hasBin: true
+
   youch-core@0.3.3:
     resolution: {integrity: sha512-ho7XuGjLaJ2hWHoK8yFnsUGy2Y5uDpqSTq1FkHLK4/oqKtyUU1AFbOOxY4IpC9f0fTLjwYbslUz0Po5BpD1wrA==}
 
@@ -1360,10 +1368,10 @@ snapshots:
     dependencies:
       csstype: 3.2.3
 
-  '@vitejs/plugin-react@6.1.2(vite@8.3.5(esbuild@0.28.2))':
+  '@vitejs/plugin-react@6.1.2(vite@8.3.5(esbuild@0.28.2)(yaml@2.9.1))':
     dependencies:
       '@rolldown/pluginutils': 1.0.1
-      vite: 8.3.5(esbuild@0.28.2)
+      vite: 8.3.5(esbuild@0.28.2)(yaml@2.9.1)
 
   blake3-wasm@2.1.5: {}
 
@@ -1591,7 +1599,7 @@ snapshots:
     dependencies:
       pathe: 2.0.3
 
-  vite@8.3.5(esbuild@0.28.2):
+  vite@8.3.5(esbuild@0.28.2)(yaml@2.9.1):
     dependencies:
       lightningcss: 1.33.0
       picomatch: 4.0.7
@@ -1601,6 +1609,7 @@ snapshots:
     optionalDependencies:
       esbuild: 0.28.2
       fsevents: 2.3.3
+      yaml: 2.9.1
 
   workerd@1.20261023.1:
     optionalDependencies:
@@ -1629,6 +1638,8 @@ snapshots:
       - utf-8-validate
 
   ws@8.21.0: {}
+
+  yaml@2.9.1: {}
 
   youch-core@0.3.3:
     dependencies:

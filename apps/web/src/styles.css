@@ -158,3 +158,31 @@ body {
   width: 100%; font-family: inherit; font-size: 1.05rem; line-height: 1.5; color: var(--fg);
   border: 2px solid var(--line); border-radius: 10px; padding: 8px 10px; resize: vertical; background: #fff;
 }
+
+/* AI Oysterman */
+.oysterman { display: flex; flex-direction: column; min-height: 100%; }
+.status-strip { margin-bottom: 8px; }
+.lots-line { margin: 4px 0 0; color: var(--fg); font-size: 0.95rem; line-height: 1.6; }
+.examples { display: flex; flex-direction: column; gap: 10px; padding: 8px 0; }
+.examples p { margin: 0 0 2px; text-align: center; }
+.example {
+  min-height: 56px; text-align: left; padding: 10px 14px; border-radius: 14px;
+  border: 2px dashed var(--line); background: var(--card); color: var(--brand); font-size: 1rem; font-weight: 600;
+  -webkit-tap-highlight-color: transparent;
+}
+.chat { flex: 1; display: flex; flex-direction: column; gap: 10px; padding: 4px 0 12px; }
+.chat-empty { text-align: center; padding: 16px 8px; }
+.bubble { max-width: 88%; padding: 12px 14px; border-radius: 16px; line-height: 1.55; font-size: 1.05rem; }
+.bubble p { margin: 0; white-space: pre-wrap; }
+.bubble.user { align-self: flex-end; background: var(--brand); color: #fff; border-bottom-right-radius: 4px; }
+.bubble.ai { align-self: flex-start; background: var(--card); border: 1px solid var(--line); border-bottom-left-radius: 4px; }
+.bubble.system { align-self: center; background: #e6f4ea; color: var(--ok); border: 1px solid #bfe3c9; font-weight: 600; max-width: 100%; }
+.bubble.thinking { color: var(--muted); }
+.bubble .btn { margin-top: 10px; width: 100%; display: flex; align-items: center; justify-content: center; text-decoration: none; }
+.bubble .btn.consult { border-color: var(--warn); color: var(--warn); }
+.chat-form { display: grid; grid-template-columns: 1fr auto; gap: 10px; position: sticky; bottom: 0; padding: 8px 0 0; background: var(--bg); }
+.chat-input {
+  min-height: 56px; font-family: inherit; font-size: 1.05rem; line-height: 1.5; color: var(--fg);
+  border: 2px solid var(--line); border-radius: 14px; padding: 12px 14px; resize: none; background: #fff;
+}
+.btn.send { min-width: 96px; }

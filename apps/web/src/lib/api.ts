@@ -185,3 +185,45 @@ export function isRetryable(e: unknown): boolean {
   if (e instanceof ApiError) return e.status >= 500;
   return e instanceof TypeError; // fetch のネットワークエラー
 }
+
+// ---- AI Oysterman ----
+export type LocationRow = { location_line: number; location_tier: string | null; n: number; latest_at: string };
+export type LotSummary = {
+  location_line: number;
+  location_tier: string | null;
+  location_label: string;
+  record_count: number;
+  latest_at: string | null;
+  last_sort_at: string | null;
+  days_since_last_sort: number | null;
+  avg_weight_g: number | null;
+  count_per_basket: number | null;
+  basket_total_kg: number | null;
+  mortality_recent: number | null;
+  lot_no: string | null;
+};
+export type EnvMetrics = {
+  mean7: number | null;
+  max7: number | null;
+  min7: number | null;
+  hot_streak: number;
+  cold_streak: number;
+  in_growth_band: boolean;
+  season: 'growth' | 'hot' | 'cold' | 'mild';
+  season_label: string;
+  vs5y: { mean: number | null; max: number | null; min: number | null; diff: number | null; period: string } | null;
+  as_of: string;
+  area_name: string;
+  source: string;
+};
+export type ChatMessage = { role: 'user' | 'assistant'; content: string };
+export type BriefLot = { location_label: string; days_since_last_sort: number | null; avg_weight_g: number | null; count_per_basket: number | null };
+export type ChatResponse = {
+  reply: string;
+  fired_rules: string[];
+  focus: string[];
+  out_of_scope: boolean;
+  out_of_scope_summary: string | null;
+  reservation: { id?: number; due_date: string; work: string; reason: string; location_label: string | null } | null;
+  context: { env: EnvMetrics; lots: BriefLot[]; today_priority: string[] };
+};

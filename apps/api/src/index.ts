@@ -2,6 +2,10 @@ import { Hono } from 'hono';
 import { WORK_TYPES, type Bindings, type RecordRow, type ReservationRow } from './types';
 import { voysy } from './voysy';
 import { segments } from './segments';
+import { oysterman } from './oysterman';
+import { computeEnv, getSuonada } from './env';
+import { getRulesConfig } from './rulesConfig';
+import { getLotSummary, todayJst } from './lot';
 
 const app = new Hono<{ Bindings: Bindings }>().basePath('/api');
 
@@ -22,6 +26,29 @@ app.get('/health', (c) => c.json({ ok: true, time: new Date().toISOString() }));
 app.route('/voysy', voysy);
 // 作業セッションの区切り: /api/segments
 app.route('/segments', segments);
+// AI Oysterman: /api/oysterman/chat
+app.route('/oysterman', oysterman);
+
+// GET /api/env/suonada  周防灘の水温指標（docs/04）
+app.get('/env/suonada', (c) => c.json(computeEnv(getSuonada(), getRulesConfig().thresholds)));
+
+// GET /api/records/summary?line=3&tier=上段
+app.get('/records/summary', async (c) => {
+  const line = Number(c.req.query('line'));
+  if (!Number.isInteger(line)) return c.json({ error: 'line is required' }, 400);
+  const tier = c.req.query('tier') || null;
+  return c.json(await getLotSummary(c.env.DB, line, tier, todayJst()));
+});
+
+// GET /api/records/locations  記録のある沖出し場所の一覧
+app.get('/records/locations', async (c) => {
+  const { results } = await c.env.DB.prepare(
+    `SELECT location_line, location_tier, COUNT(*) AS n, MAX(recorded_at) AS latest_at
+       FROM records WHERE location_line IS NOT NULL
+      GROUP BY location_line, location_tier ORDER BY location_line, location_tier`,
+  ).all<{ location_line: number; location_tier: string | null; n: number; latest_at: string }>();
+  return c.json(results);
+});
 
 // GET /api/records?line=3&tier=上段&limit=10
 app.get('/records', async (c) => {
@@ -91,6 +118,29 @@ app.get('/reservations', async (c) => {
     .bind(status)
     .all<ReservationRow>();
   return c.json(results);
+});
+
+// POST /api/reservations  { due_date, location_line, location_tier, work, reason, rule_ids }
+app.post('/reservations', async (c) => {
+  const b = await c.req.json<Partial<ReservationRow>>().catch(() => null);
+  if (!b) return c.json({ error: 'invalid json' }, 400);
+  if (typeof b.due_date !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(b.due_date)) {
+    return c.json({ error: 'due_date (YYYY-MM-DD) is required' }, 400);
+  }
+  if (typeof b.work !== 'string' || !b.work.trim()) return c.json({ error: 'work is required' }, 400);
+  const res = await c.env.DB.prepare(
+    'INSERT INTO reservations (due_date, location_line, location_tier, work, reason, rule_ids) VALUES (?, ?, ?, ?, ?, ?)',
+  )
+    .bind(
+      b.due_date,
+      typeof b.location_line === 'number' ? b.location_line : null,
+      typeof b.location_tier === 'string' && b.location_tier ? b.location_tier : null,
+      b.work.trim(),
+      typeof b.reason === 'string' ? b.reason : null,
+      typeof b.rule_ids === 'string' ? b.rule_ids : null,
+    )
+    .run();
+  return c.json({ id: res.meta.last_row_id }, 201);
 });
 
 app.notFound((c) => c.json({ error: 'not found' }, 404));
