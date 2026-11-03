@@ -72,3 +72,4 @@ Claude Code が docs にない判断をしたら、ここに1行で追記する�
 - 2026-11-03 会話評価 `tests/oysterman_eval/`（16 ケース：デモ 5、範囲外 3、曖昧 2、断定誘導 3、ルール 2、アプリ 1）を追加し `pnpm eval` で通過数を出す。16/16。結果は `tests/oysterman_eval/results/<日付>.md`
 - 2026-11-03 禁止語の検査（サーバー・評価とも）は否定形（「必ず死ぬわけではありません」「予測はできません」）と「…」の引用を断定と見なさない。実機の問いかけ「必ず死ぬよね？」に否定で答えた返答が固定文に置き換わっていたため
 - 2026-11-03 `.claude/skills/oyster-glossary`（用語と言い回し）、`.claude/agents/rules-reviewer`（rules.yaml の矛盾検出・読み取り専用）、`.githooks/pre-commit`（実名・既存システム名・API キー・秘密ファイルの検出。`pnpm i` の prepare で hooksPath を設定）と、同じ検査を Claude Code の `git commit` 直前にも走らせる PreToolUse フック（`.claude/settings.json`）を追加
+- 2026-11-03 締切が 11/8（日）20:00 JST に前倒しと判明（当初 11/10 14:00）。予備日を無くし、11/3 フィードバック依頼と Voysy 実地テスト、11/4 反映と机上収録、11/5 移動（保険の B-roll）、11/6 撮影と夜のナレーション、11/7 編集と提出物、11/8 午前提出に組み直し。11/4 以降は新機能を入れない
