@@ -53,10 +53,17 @@ export function basketCountFromText(raw: string): number | null {
 /** 漁場名：「D漁場」「ディー」→ "D"。英字 1〜3 文字か数字に揃える */
 export function normalizeFarm(raw: string | null): string | null {
   if (!raw) return null;
-  let t = raw.replace(/[Ａ-Ｚａ-ｚ０-９]/g, (c) => String.fromCharCode(c.charCodeAt(0) - 0xfee0)).replace(/漁場|ぎょじょう|\s/g, '').toUpperCase();
+  // 「漁場」と、その文字起こしの崩れ（漁錠・漁上・漁条・魚場・業場・漁所）を剥がす
+  let t = raw
+    .replace(/[Ａ-Ｚａ-ｚ０-９]/g, (c) => String.fromCharCode(c.charCodeAt(0) - 0xfee0))
+    .replace(/漁場|漁錠|漁上|漁条|魚場|業場|漁所|ぎょじょう|\s/g, '')
+    .toUpperCase();
   const kana: Record<string, string> = { エー: 'A', ビー: 'B', シー: 'C', ディー: 'D', デー: 'D', イー: 'E', エフ: 'F', ジー: 'G', エイチ: 'H' };
   if (kana[t]) t = kana[t];
-  return /^[A-Z]{1,3}$|^\d{1,2}$/.test(t) ? t : raw.trim();
+  if (/^[A-Z]{1,3}$|^\d{1,2}$/.test(t)) return t;
+  // それでも揃わなければ、先頭の英字だけを取る（「D漁錠の」「Dぎょ」など）
+  const lead = /^([A-Z]{1,3})(?![A-Z])/.exec(t);
+  return lead ? lead[1] : raw.trim();
 }
 
 /** かごの種類：「15リットル」「15 L」→ "15L" */

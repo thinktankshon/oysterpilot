@@ -17,7 +17,7 @@ test('resolveFocus: 別のラインに移ったら段は引き継がない', () 
   assert.deepEqual(resolveFocus(['3番の上段どう？', '5番はどう？']), { line: 5, tier: null });
 });
 
-import { parsePlaceFromText, normalizeLot, lotFromText, basketCountFromText } from './voysyParse.ts';
+import { parsePlaceFromText, normalizeLot, normalizeFarm, lotFromText, basketCountFromText } from './voysyParse.ts';
 
 test('parsePlaceFromText: 崩れた表記からも場所を拾う', () => {
   assert.deepEqual(parsePlaceFromText('ディー魚場5連5件目から12件目、10かご'), { farm: 'D', lane: 5, ma_from: 5, ma_to: 12 });
@@ -58,4 +58,13 @@ test('basketCountFromText: 沖出し・陸揚げの「個」はかご数', () =>
   assert.equal(basketCountFromText('R 8の計算陸上げ漁上の505から12枚10個です'), 10);
   assert.equal(basketCountFromText('置き出しR 8の計算40カゴD漁錠5レーン1目から8豆'), 40);
   assert.equal(basketCountFromText('風が強かった'), null);
+});
+
+test('normalizeFarm: 漁場の崩れを剥がして英字だけにする', () => {
+  assert.equal(normalizeFarm('D漁錠'), 'D');
+  assert.equal(normalizeFarm('ディー魚場'), 'D');
+  assert.equal(normalizeFarm('漁錠D'), 'D');
+  assert.equal(normalizeFarm('D漁場'), 'D');
+  assert.equal(normalizeFarm('デー'), 'D');
+  assert.equal(normalizeFarm('3'), '3');
 });
