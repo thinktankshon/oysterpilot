@@ -444,7 +444,7 @@ export function Voysy() {
     try {
       const r = await api<ExtractResult>('/api/voysy/extract', {
         method: 'POST',
-        body: JSON.stringify({ text }),
+        body: JSON.stringify({ text, ...(currentSegmentId != null ? { segment_id: currentSegmentId } : {}) }),
       });
       setResult({ ...r, items: r.work_type === '選別' && r.items.length === 0 ? [EMPTY_ITEM] : r.items });
       setRecordedAt((cur) => cur || jstNowIso());
@@ -489,8 +489,9 @@ export function Voysy() {
     setSaving(true);
     const inputs = toRecordInputs(result, draft.trim() || '（手入力）', recordedAt || undefined);
     const segId = currentSegmentId;
+    const exId = result.extraction_id ?? undefined;
     try {
-      await saveRecords(inputs, segId ?? undefined);
+      await saveRecords(inputs, segId ?? undefined, exId);
       setCurrentSegmentId(null);
       showToast(inputs.length > 1 ? `${inputs.length}件（サイズ帯ごと）保存しました` : `${result.work_type}を保存しました`);
       await loadRecent();
@@ -505,7 +506,7 @@ export function Voysy() {
       setPhase('idle');
     } catch (e) {
       if (isRetryable(e)) {
-        setPending(addPending({ kind: 'records', inputs, segment_id: segId ?? undefined }));
+        setPending(addPending({ kind: 'records', inputs, segment_id: segId ?? undefined, extraction_id: exId }));
         setCurrentSegmentId(null);
         setPhase('idle');
         showToast('通信できないため、未送信に残しました');

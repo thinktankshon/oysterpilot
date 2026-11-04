@@ -107,7 +107,7 @@ Oyscan（海を診る）→ Voysy（海で記録する）→ AI Oysterman（海�
 - API：Hono on Cloudflare Workers。フロントも同じ Worker から配信（Static Assets）。台帳は Cloudflare D1。
 - Claude API：`claude-haiku-5-5`（Voysy の構造化、JSON Schema による構造化出力）、`claude-sonnet-5-5`（AI Oysterman の会話、Oyscan の所見）。予約と範囲外判定は tool use で構造化。知識を含む約 1.5 万トークンのシステムプロンプトはプロンプトキャッシュに載せ、毎回送るのは記録・水温・成立ルールの約 900 トークンだけ。API キーは Workers の secret にのみ置き、フロントに出しません。
 - 共有パスワード：`X-Demo-Key` ヘッダ。審査用の簡易保護です。
-- テスト：ルール判定・場所解決・文字起こしの正規化・録音範囲の単体テスト 24 件（`pnpm test`）。会話評価 25 ケース（デモ・一般論・範囲外・曖昧・断定誘導、`pnpm eval`）。想定質問 100 問の一括検証（`pnpm sweep`）。会話ログ（`chat_logs`）から答えられなかった質問を洗い出して知見を足す。
+- テスト：ルール判定・場所解決・文字起こしの正規化・録音範囲の単体テスト 24 件（`pnpm test`）。会話評価 25 ケース（デモ・一般論・範囲外・曖昧・断定誘導、`pnpm eval`）。想定質問 153 問の一括検証（`pnpm sweep`）。会話ログ（`chat_logs`）から答えられなかった質問を洗い出して知見を足す。Voysy は読み取り結果と人が直した記録の差分を `pnpm accuracy` で集計し、崩れ方の対応表を育てる。
 - 開発の仕組み（Claude Code）：用語と言い回しのスキル `.claude/skills/oyster-glossary`、ルール表の矛盾を検出するエージェント `.claude/agents/rules-reviewer`、実名・秘密情報を止めるコミット前フック（`.githooks/pre-commit`、Claude Code の `git commit` 直前にも同じ検査）。判断の記録は `docs/99_decisions.md`。
 
 ## 6. セットアップ

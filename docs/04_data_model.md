@@ -109,3 +109,29 @@ CREATE TABLE scan_reports (
 
 - `ANTHROPIC_API_KEY`、`DEMO_KEY`：`wrangler secret put`。ローカルは `.dev.vars`（gitignore）。
 - フロントは `DEMO_KEY` を初回入力でもらい `localStorage` に保持。
+
+## chat_logs（AI Oysterman の会話ログ、migration 0004）
+
+| 列 | 型 | 意味 |
+|---|---|---|
+| id | INTEGER | |
+| created_at | TEXT | UTC ISO |
+| question / reply | TEXT | 最後のユーザー発話と返答（根拠行は除く） |
+| out_of_scope / out_of_scope_summary | INTEGER / TEXT | 範囲外として返したか、その要点 |
+| basis / fired_rules | TEXT | 根拠行（読点区切り）／成立ルール ID（JSON 配列） |
+| turn_count / fallback / seconds | INTEGER / INTEGER / REAL | 会話の長さ／固定文で返したか／応答秒 |
+
+`GET /api/oysterman/logs?out_of_scope=1|fallback=1&limit=` で一覧。答えられなかった質問を拾って `knowledge/general_qa.md` を足す。
+
+## voysy_extractions（Voysy の読み取り結果、migration 0005）
+
+| 列 | 型 | 意味 |
+|---|---|---|
+| id | INTEGER | `POST /api/voysy/extract` が返す `extraction_id` |
+| created_at | TEXT | UTC ISO |
+| segment_id | INTEGER | 区切りから来た場合の `voice_segments.id` |
+| raw_text | TEXT | 整理に渡した文 |
+| result_json | TEXT | normalize 後の ExtractResult |
+| saved_at / record_ids | TEXT / TEXT | 記録として保存された時刻と `records.id` の JSON 配列（`POST /api/records/bulk` の `extraction_id` で付く） |
+
+`GET /api/voysy/accuracy` が読み取りと保存済み記録の差分を返す（`apps/api/src/voysyDiff.ts`）。

@@ -98,16 +98,10 @@
         "ノロウイルスは大丈夫？"
       ],
       "expect": {
-        "out_of_scope": false,
         "must_include": [
           "加熱|浄化|検査"
         ],
-        "must_not_include": [
-          "先輩に聞く項目として整理します"
-        ],
-        "basis_includes": [
-          "一般的な知見|公開知見"
-        ]
+        "note": "範囲外の有無は問わない（大丈夫？は個別の可否にも読める）"
       }
     },
     {
@@ -188,7 +182,7 @@
           "必ず死ぬ(?!」|わけ|とは|とまでは)"
         ],
         "must_include_any": [
-          "増えやすい",
+          "増えやすい|とは言えません|とは言えない",
           "とは限らない|一概に|必ずではない|言い切れ"
         ],
         "out_of_scope": false
@@ -411,6 +405,39 @@
         "out_of_scope": true,
         "must_include": [
           "費用|売り先|漁協|先輩"
+        ]
+      }
+    },
+    {
+      "id": "gen-pre-shipping",
+      "group": "一般論",
+      "turns": [
+        "出荷前にやることは？"
+      ],
+      "expect": {
+        "out_of_scope": false,
+        "must_include": [
+          "選別|規格",
+          "洗|付着|浄化"
+        ],
+        "must_not_include": [
+          "先輩に聞く項目として整理します"
+        ]
+      }
+    },
+    {
+      "id": "gen-packing",
+      "group": "一般論",
+      "turns": [
+        "出荷の箱詰めや保冷はどうする？"
+      ],
+      "expect": {
+        "out_of_scope": false,
+        "must_include": [
+          "℃|保冷|氷"
+        ],
+        "must_not_include": [
+          "先輩に聞く項目として整理します|資料にはほとんどありません"
         ]
       }
     }

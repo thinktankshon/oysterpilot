@@ -166,7 +166,7 @@ app.post('/records', async (c) => {
 
 // POST /api/records/bulk  { records: [...], segment_id? } → { ids }  選別の複数サイズ帯や、1 区切りの複数作業を一度に保存
 app.post('/records/bulk', async (c) => {
-  const body = await c.req.json<{ records?: Partial<RecordRow>[]; segment_id?: number }>().catch(() => null);
+  const body = await c.req.json<{ records?: Partial<RecordRow>[]; segment_id?: number; extraction_id?: number }>().catch(() => null);
   if (!body || !Array.isArray(body.records) || body.records.length === 0) return c.json({ error: 'records is required' }, 400);
   if (body.records.length > 20) return c.json({ error: 'too many records (max 20)' }, 400);
   const now = jstNowIso();
@@ -179,6 +179,13 @@ app.post('/records/bulk', async (c) => {
   if (typeof body.segment_id === 'number') {
     await c.env.DB.prepare("UPDATE voice_segments SET status = 'done', record_id = ? WHERE id = ?")
       .bind(ids[0], body.segment_id)
+      .run()
+      .catch(() => undefined);
+  }
+  if (typeof body.extraction_id === 'number') {
+    // 読み取りの検証用：抽出結果に保存済みの記録を紐づける
+    await c.env.DB.prepare('UPDATE voysy_extractions SET saved_at = ?, record_ids = ? WHERE id = ?')
+      .bind(new Date().toISOString(), JSON.stringify(ids), body.extraction_id)
       .run()
       .catch(() => undefined);
   }

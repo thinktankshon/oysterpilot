@@ -5,6 +5,8 @@ import extractPrompt from '../../../prompts/voysy_extract.md';
 import glossaryYaml from '../../../config/glossary.yaml';
 import type { Bindings } from './types';
 import { normalizeLot, normalizeFarm, normalizeBasketType, parsePlaceFromText, lotFromText, basketCountFromText } from './voysyParse';
+import { diffExtraction, summarize, type ExtractionDiff } from './voysyDiff';
+import type { RecordRow } from './types';
 
 // 抽出は軽量モデルで十分（docs/01）。応答 3 秒以内を目標。
 const EXTRACT_MODEL = 'claude-haiku-5-5';
@@ -121,8 +123,9 @@ export const voysy = new Hono<{ Bindings: Bindings }>();
 
 // POST /api/voysy/extract  { text } → 作業別の型に整理した JSON
 voysy.post('/extract', async (c) => {
-  const body = await c.req.json<{ text?: unknown }>().catch(() => null);
+  const body = await c.req.json<{ text?: unknown; segment_id?: unknown }>().catch(() => null);
   const text = typeof body?.text === 'string' ? body.text.trim() : '';
+  const segmentId = typeof body?.segment_id === 'number' ? body.segment_id : null;
   if (!text) return c.json({ error: 'text is required' }, 400);
   if (text.length > 2000) return c.json({ error: 'text is too long (max 2000)' }, 400);
   if (!c.env.ANTHROPIC_API_KEY) {
@@ -163,7 +166,46 @@ voysy.post('/extract', async (c) => {
   } catch {
     return c.json({ error: '整理結果を読めませんでした。もう一度お試しください。' }, 502);
   }
-  return c.json(normalize(parsed, text));
+  const result = normalize(parsed, text);
+  // 読み取りの検証用に抽出結果を残す（保存時に record_ids が付く）。失敗しても結果は返す
+  let extractionId: number | null = null;
+  try {
+    const r = await c.env.DB.prepare('INSERT INTO voysy_extractions (created_at, segment_id, raw_text, result_json) VALUES (?, ?, ?, ?)')
+      .bind(new Date().toISOString(), segmentId, text, JSON.stringify(result))
+      .run();
+    extractionId = Number(r.meta.last_row_id);
+  } catch (e) {
+    console.error('voysy_extractions insert failed', e instanceof Error ? e.message : e);
+  }
+  return c.json({ ...result, extraction_id: extractionId });
+});
+
+// GET /api/voysy/accuracy?limit=200  抽出結果と保存済み記録の差分（読み取りの検証）
+voysy.get('/accuracy', async (c) => {
+  const limit = Math.min(500, Math.max(1, Number(c.req.query('limit') ?? 200) || 200));
+  const { results } = await c.env.DB.prepare(
+    'SELECT id, created_at, raw_text, result_json, record_ids FROM voysy_extractions WHERE saved_at IS NOT NULL ORDER BY id DESC LIMIT ?',
+  )
+    .bind(limit)
+    .all<{ id: number; created_at: string; raw_text: string; result_json: string; record_ids: string }>();
+  const diffs: ExtractionDiff[] = [];
+  for (const row of results) {
+    let ids: number[] = [];
+    let result: ExtractResult;
+    try {
+      ids = (JSON.parse(row.record_ids) as number[]).filter((n) => Number.isInteger(n));
+      result = JSON.parse(row.result_json) as ExtractResult;
+    } catch {
+      continue;
+    }
+    if (ids.length === 0) continue;
+    const { results: recs } = await c.env.DB.prepare(`SELECT * FROM records WHERE id IN (${ids.map(() => '?').join(',')})`)
+      .bind(...ids)
+      .all<RecordRow>();
+    const d = diffExtraction({ id: row.id, created_at: row.created_at, raw_text: row.raw_text, result }, recs);
+    if (d) diffs.push(d);
+  }
+  return c.json({ summary: summarize(diffs), diffs });
 });
 
 /** モデル出力を検証し、作業の型に合わない項目を落とす */

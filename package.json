@@ -9,7 +9,8 @@
     "test": "pnpm -C apps/api test && pnpm -C apps/web test",
     "eval": "node tests/oysterman_eval/run.ts",
     "prepare": "git config core.hooksPath .githooks",
-    "sweep": "node tests/oysterman_eval/sweep.ts"
+    "sweep": "node tests/oysterman_eval/sweep.ts",
+    "accuracy": "node scripts/voysy_accuracy.ts"
   },
   "packageManager": "pnpm@12.16.1"
 }

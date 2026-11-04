@@ -127,6 +127,8 @@ export type ExtractResult = {
   location_tier: string | null;
   notes: string | null;
   missing: string[];
+  /** 抽出結果の ID（読み取りの検証用。保存時に渡す） */
+  extraction_id?: number | null;
 };
 
 /** POST /api/records の本文（1 件） */
@@ -243,7 +245,7 @@ const PENDING_STORAGE = 'oysterpilot.pendingRecords';
 
 export type PendingInput =
   | { kind: 'record'; input: RecordInput; segment_id?: number }
-  | { kind: 'records'; inputs: RecordInput[]; segment_id?: number }
+  | { kind: 'records'; inputs: RecordInput[]; segment_id?: number; extraction_id?: number }
   | { kind: 'segment'; input: SegmentInput };
 export type PendingItem = PendingInput & { key: string; created_at: string };
 
@@ -281,7 +283,7 @@ export async function sendPending(item: PendingItem): Promise<void> {
     return;
   }
   if (item.kind === 'records') {
-    await saveRecords(item.inputs, item.segment_id);
+    await saveRecords(item.inputs, item.segment_id, item.extraction_id);
     return;
   }
   const { id } = await api<{ id: number }>('/api/records', { method: 'POST', body: JSON.stringify(item.input) });
@@ -373,10 +375,14 @@ export type ScanEvaluate = { supported: boolean; lat: number; lng: number; evalu
 export type ScanReport = { id: number; report_text: string; evaluation: ScanEvaluation; labels: ScanLabels; lat?: number; lng?: number };
 
 /** 帯ごとの記録を一括保存（区切り ID があれば確定も同時に） */
-export async function saveRecords(inputs: RecordInput[], segmentId?: number): Promise<number[]> {
+export async function saveRecords(inputs: RecordInput[], segmentId?: number, extractionId?: number | null): Promise<number[]> {
   const { ids } = await api<{ ids: number[] }>('/api/records/bulk', {
     method: 'POST',
-    body: JSON.stringify({ records: inputs, ...(segmentId != null ? { segment_id: segmentId } : {}) }),
+    body: JSON.stringify({
+      records: inputs,
+      ...(segmentId != null ? { segment_id: segmentId } : {}),
+      ...(extractionId != null ? { extraction_id: extractionId } : {}),
+    }),
   });
   return ids;
 }

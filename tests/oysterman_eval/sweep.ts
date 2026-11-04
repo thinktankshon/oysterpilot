@@ -17,7 +17,7 @@ function loadQuestions(): Row[] {
   const md = readFileSync(join(here, '../../knowledge/questions.md'), 'utf8');
   const rows: Row[] = [];
   for (const line of md.split('\n')) {
-    const m = /^\|\s*([A-J]\d{1,2})\s*\|\s*(.+?)\s*\|\s*(.+?)\s*\|$/.exec(line);
+    const m = /^\|\s*([A-Z]\d{1,2})\s*\|\s*(.+?)\s*\|\s*(.+?)\s*\|$/.exec(line);
     if (m) rows.push({ id: m[1], q: m[2], expect: m[3] });
   }
   return rows;
@@ -37,8 +37,9 @@ async function ask(q: string) {
 }
 
 const rows = loadQuestions();
-const only = process.argv[2]; // 例: J（グループだけ）
-const targets = only ? rows.filter((r) => r.id.startsWith(only)) : rows;
+const only = process.argv[2]; // 例: J または K,L,M（グループだけ）
+const groups = only ? only.split(',') : null;
+const targets = groups ? rows.filter((r) => groups.some((g) => r.id.startsWith(g))) : rows;
 console.log(`${targets.length} 問を ${URL_BASE} に流します`);
 const out: string[] = [];
 let errors = 0, banned = 0, oos = 0, oosPhrase = 0;
@@ -71,6 +72,6 @@ const md = [
   `合計 ${targets.length} 問、エラー ${errors}、禁止語あり ${banned}、範囲外 ${oos}（「先輩に聞く項目として整理します」を含む返答 ${oosPhrase}）`,
   '',
 ].join('\n');
-const file = join(here, `../../knowledge/eval_${date}${only ? '_' + only : ''}.md`);
+const file = join(here, `../../knowledge/eval_${date}${only ? '_' + only.replace(/,/g, '') : ''}.md`);
 writeFileSync(file, md);
 console.log(`\n合計 ${targets.length} 問、エラー ${errors}、禁止語あり ${banned}、範囲外 ${oos}、整理します ${oosPhrase} → ${file}`);
