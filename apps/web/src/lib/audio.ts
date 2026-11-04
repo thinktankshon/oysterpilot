@@ -64,8 +64,8 @@ function pickMimeType(): string {
 }
 
 export type AudioRecorder = {
-  /** 合図（区切り）の位置を印として残す */
-  mark: (seq: number) => void;
+  /** 合図（区切り）の位置を印として残す。at は合図を言った時刻（Date.now() の値）。省略すると今 */
+  mark: (seq: number, at?: number) => void;
   /** 録音を止めて音声を返す。何も録れていなければ null */
   stop: () => Promise<{ blob: Blob; mime: string; duration_ms: number; marks: AudioMark[] } | null>;
   readonly mime: string;
@@ -112,8 +112,8 @@ export async function startAudioRecording(): Promise<AudioRecorder | null> {
 
   return {
     mime: actualMime,
-    mark: (seq) => {
-      marks.push({ seq, at_ms: Date.now() - startedAt });
+    mark: (seq, at) => {
+      marks.push({ seq, at_ms: Math.max(0, (at ?? Date.now()) - startedAt) });
     },
     stop: () =>
       new Promise((resolve) => {

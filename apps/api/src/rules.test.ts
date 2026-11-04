@@ -60,9 +60,11 @@ test('殻がツルツル → R6、2.5kg 目安（薄めより優先）', () => {
   assert.equal(ev.basket_kg_target, 2.5);
 });
 
-test('範囲外：ノロウイルス・分からない', () => {
-  assert.equal(detectTopic('ノロウイルスは大丈夫？').out_of_scope, true);
+test('範囲外：分からない・解決しない', () => {
+  // 2026-11-04：衛生・制度の一般論は答えるので、語だけでは範囲外にしない（個別の可否はモデルが判断）
+  assert.equal(detectTopic('ノロウイルスは大丈夫？').out_of_scope, false);
   assert.equal(detectTopic('よく分からない').out_of_scope, true);
+  assert.equal(detectTopic('解決しない').out_of_scope, true);
   assert.equal(detectTopic('3番の選別いつやる？').out_of_scope, false);
 });
 

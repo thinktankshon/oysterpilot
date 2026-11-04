@@ -67,7 +67,8 @@ Oyscan（海を診る）→ Voysy（海で記録する）→ AI Oysterman（海�
 | ルール表 | 閾値と成立条件（R1〜R10）。数字の判断はここだけ | `config/rules.yaml` |
 | リブルの現場 | 現場の目安・作業規律・話し方（聞き取り 30 問） | `knowledge/reblue_views.md` |
 | 公開知見 | 文献・県水試・水産庁・海外普及資料の要点（出典つき） | `knowledge/digest.md`、`knowledge/notes_*.md` |
-| 範囲外 | 病気・衛生・貝毒・販売・法規・補助金。断定せず「先輩に聞く項目」に整理し、確認先の種類だけ言う | プロンプトの線引き |
+| 一般的な知見 | 出漁の目安、ライン間隔、病気の見方、種苗の入手経路、衛生と生食用の仕組み、漁業権・補助金・共済の流れなど。仕組みと目安まで答え、確認先の種類を添える | `knowledge/general_qa.md` |
+| 範囲外 | 個別の可否や数字の断定（今出荷していいか、いくらで売れるか、儲かるか）。一般論を言ったうえで「先輩に聞く項目」に整理する | プロンプトの線引き |
 
 斃死の原因は断定せず、密度・水温・雨量・場所・時期・青潮や赤潮の順に「見てみましょう」と並べます。判断に足りないことは 1 つだけ聞き返し、提案は「この作業を予約する」で Voysy の予定に書き戻します。各返答の下に根拠の種別（記録・ルール表・リブルの現場・公開知見）を小さく表示します。想定質問 100 問（`knowledge/questions.md`）で検証し、禁止語 0・範囲外の判定は想定どおりでした（`knowledge/eval_2026-11-02.md`）。
 
@@ -106,7 +107,7 @@ Oyscan（海を診る）→ Voysy（海で記録する）→ AI Oysterman（海�
 - API：Hono on Cloudflare Workers。フロントも同じ Worker から配信（Static Assets）。台帳は Cloudflare D1。
 - Claude API：`claude-haiku-5-5`（Voysy の構造化、JSON Schema による構造化出力）、`claude-sonnet-5-5`（AI Oysterman の会話、Oyscan の所見）。予約と範囲外判定は tool use で構造化。知識を含む約 1.5 万トークンのシステムプロンプトはプロンプトキャッシュに載せ、毎回送るのは記録・水温・成立ルールの約 900 トークンだけ。API キーは Workers の secret にのみ置き、フロントに出しません。
 - 共有パスワード：`X-Demo-Key` ヘッダ。審査用の簡易保護です。
-- テスト：ルール判定と場所解決の単体テスト 13 件（`pnpm test`）。会話評価 16 ケース（デモ・範囲外・曖昧・断定誘導、`pnpm eval`、16/16）。想定質問 100 問の一括検証。
+- テスト：ルール判定・場所解決・文字起こしの正規化・録音範囲の単体テスト 24 件（`pnpm test`）。会話評価 25 ケース（デモ・一般論・範囲外・曖昧・断定誘導、`pnpm eval`）。想定質問 100 問の一括検証（`pnpm sweep`）。会話ログ（`chat_logs`）から答えられなかった質問を洗い出して知見を足す。
 - 開発の仕組み（Claude Code）：用語と言い回しのスキル `.claude/skills/oyster-glossary`、ルール表の矛盾を検出するエージェント `.claude/agents/rules-reviewer`、実名・秘密情報を止めるコミット前フック（`.githooks/pre-commit`、Claude Code の `git commit` 直前にも同じ検査）。判断の記録は `docs/99_decisions.md`。
 
 ## 6. セットアップ

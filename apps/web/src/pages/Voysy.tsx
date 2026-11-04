@@ -22,7 +22,7 @@ import {
   type SegmentRow,
 } from '../lib/api';
 import { isSpeechSupported, startSpeech, type SpeechSession } from '../lib/speech';
-import { CUE_HINT, findCue } from '../lib/cues';
+import { CUE_HINT, countSplitCues, findCue } from '../lib/cues';
 import { SegmentAudio } from '../components/SegmentAudio';
 import { RecordDetail } from '../components/RecordDetail';
 import {
@@ -300,29 +300,49 @@ export function Voysy() {
     await loadRecent();
   };
 
+  // 合図を言った時刻の控え。iPhone は無音のあとにまとめて確定するので、確定時刻で印を付けると数秒〜十数秒遅れる。
+  // 認識中の仮の文に合図が初めて現れた時刻を控えておき、確定で処理するときにその時刻を印に使う。
+  const cueSeenRef = useRef(0); // 今の文（確定＋仮）に見えている合図の数
+  const cueTimesRef = useRef<number[]>([]); // 見えた順の時刻（古い順）
+
   const handleSessionText = (f: string, i: string) => {
-    const hit = findCue(f);
-    if (!hit) {
-      setFinalText(f);
-      setInterimText(i);
-      return;
+    const seen = countSplitCues(f + i);
+    if (seen > cueSeenRef.current) {
+      for (let k = cueSeenRef.current; k < seen; k++) cueTimesRef.current.push(Date.now());
+    } else if (seen < cueSeenRef.current) {
+      // 仮の文で見えた合図が消えた（聞き間違い）→ 新しい控えから捨てる
+      cueTimesRef.current.splice(seen);
     }
-    const before = f.slice(0, hit.index);
-    const after = f.slice(hit.index + hit.length);
-    if (hit.type === 'split') {
-      // 合図の位置を録音の印に残す（次の区切りの頭出し用）
-      audioRef.current?.mark(seqRef.current + 1);
-      void commitSegment(before);
-      sessionRef.current?.reset(after);
-      setFinalText(after);
-      setInterimText(i);
-    } else {
-      // 終了語：ここまでを保存して止める（終了語より後は捨てる）
-      sessionRef.current?.reset(before);
-      setFinalText(before);
-      setInterimText('');
-      sessionRef.current?.stop();
+    cueSeenRef.current = seen;
+
+    // 確定した文に合図が複数あれば、その場で全部処理する
+    let text = f;
+    for (;;) {
+      const hit = findCue(text);
+      if (!hit) break;
+      const before = text.slice(0, hit.index);
+      const after = text.slice(hit.index + hit.length);
+      if (hit.type === 'split') {
+        const at = cueTimesRef.current.shift() ?? Date.now();
+        audioRef.current?.mark(seqRef.current + 1, at);
+        void commitSegment(before);
+        text = after;
+      } else {
+        // 終了語：ここまでを保存して止める（終了語より後は捨てる）
+        cueSeenRef.current = 0;
+        cueTimesRef.current = [];
+        sessionRef.current?.reset(before);
+        setFinalText(before);
+        setInterimText('');
+        sessionRef.current?.stop();
+        return;
+      }
     }
+    cueSeenRef.current = countSplitCues(text + i);
+    cueTimesRef.current.splice(cueSeenRef.current);
+    if (text !== f) sessionRef.current?.reset(text);
+    setFinalText(text);
+    setInterimText(i);
   };
 
   const startSession = () => {
@@ -333,6 +353,8 @@ export function Voysy() {
     }
     sessionIdRef.current = `s-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`;
     seqRef.current = 0;
+    cueSeenRef.current = 0;
+    cueTimesRef.current = [];
     setSegCount(0);
     setFinalText('');
     setInterimText('');

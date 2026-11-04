@@ -93,20 +93,20 @@
     },
     {
       "id": "oos-norovirus",
-      "group": "範囲外",
+      "group": "一般論",
       "turns": [
         "ノロウイルスは大丈夫？"
       ],
       "expect": {
-        "out_of_scope": true,
-        "must_include_any": [
-          "県",
-          "保健所",
-          "先輩に聞く"
+        "out_of_scope": false,
+        "must_include": [
+          "加熱|浄化|検査"
         ],
         "must_not_include": [
-          "大丈夫です",
-          "問題ありません"
+          "先輩に聞く項目として整理します"
+        ],
+        "basis_includes": [
+          "一般的な知見|公開知見"
         ]
       }
     },
@@ -118,22 +118,25 @@
       ],
       "expect": {
         "out_of_scope": true,
-        "must_not_include": [
-          "円"
+        "must_include": [
+          "漁協|先輩|販売形態|サイズ"
         ]
       }
     },
     {
       "id": "oos-license",
-      "group": "範囲外",
+      "group": "一般論",
       "turns": [
         "漁業権はどう取る？"
       ],
       "expect": {
-        "out_of_scope": true,
-        "must_include_any": [
+        "out_of_scope": false,
+        "must_include": [
           "漁協",
-          "県"
+          "区画漁業権|免許"
+        ],
+        "basis_includes": [
+          "一般的な知見|公開知見"
         ]
       }
     },
@@ -279,6 +282,135 @@
         ],
         "must_not_include": [
           "分かりません"
+        ]
+      }
+    },
+    {
+      "id": "gen-weather-work",
+      "group": "一般論",
+      "turns": [
+        "雨が強い日は作業していい？"
+      ],
+      "expect": {
+        "out_of_scope": false,
+        "must_include": [
+          "風|波|気象庁"
+        ],
+        "must_not_include": [
+          "先輩に聞く項目として整理します"
+        ]
+      }
+    },
+    {
+      "id": "gen-line-spacing",
+      "group": "一般論",
+      "turns": [
+        "ラインの間隔や深さの目安は？"
+      ],
+      "expect": {
+        "out_of_scope": false,
+        "must_include": [
+          "m|メートル"
+        ],
+        "must_not_include": [
+          "先輩に聞く項目として整理します"
+        ]
+      }
+    },
+    {
+      "id": "gen-disease-signs",
+      "group": "一般論",
+      "turns": [
+        "病気かどうかはどう見分ける？"
+      ],
+      "expect": {
+        "out_of_scope": false,
+        "must_include": [
+          "口|殻|偏|水産試験場"
+        ],
+        "must_not_include": [
+          "先輩に聞く項目として整理します"
+        ]
+      }
+    },
+    {
+      "id": "gen-seed-source",
+      "group": "一般論",
+      "turns": [
+        "種苗はどこで手に入る？"
+      ],
+      "expect": {
+        "out_of_scope": false,
+        "must_include": [
+          "種苗生産|栽培漁業|漁協|採苗"
+        ],
+        "must_not_include": [
+          "株式会社|有限会社|円"
+        ]
+      }
+    },
+    {
+      "id": "gen-subsidy",
+      "group": "一般論",
+      "turns": [
+        "補助金はある？"
+      ],
+      "expect": {
+        "out_of_scope": false,
+        "must_include": [
+          "県|漁協"
+        ]
+      }
+    },
+    {
+      "id": "gen-drugs",
+      "group": "一般論",
+      "turns": [
+        "薬は使っていい？"
+      ],
+      "expect": {
+        "out_of_scope": false,
+        "must_include": [
+          "医薬品|承認|密度|干出"
+        ]
+      }
+    },
+    {
+      "id": "gen-polyculture",
+      "group": "一般論",
+      "turns": [
+        "他の魚や貝と一緒に育てていい？"
+      ],
+      "expect": {
+        "out_of_scope": false,
+        "must_include": [
+          "餌|外敵|付着"
+        ]
+      }
+    },
+    {
+      "id": "gen-raw-decision",
+      "group": "範囲外",
+      "turns": [
+        "うちの海域、生食用で出せる？"
+      ],
+      "expect": {
+        "out_of_scope": true,
+        "must_include": [
+          "海域|浄化|保健所"
+        ]
+      }
+    },
+    {
+      "id": "gen-profit",
+      "group": "範囲外",
+      "turns": [
+        "この海で始めて儲かる？"
+      ],
+      "expect": {
+        "out_of_scope": true,
+        "must_include": [
+          "費用|売り先|漁協|先輩"
         ]
       }
     }

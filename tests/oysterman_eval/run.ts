@@ -66,7 +66,7 @@ function check(e: Expect, r: ChatResponse): string[] {
   if (e.reservation != null && Boolean(r.reservation) !== e.reservation) fails.push(`予約が ${r.reservation ? 'ある' : '無い'}（期待 ${e.reservation}）`);
   if (e.reservation_location && r.reservation?.location_label !== e.reservation_location) fails.push(`予約の場所が ${r.reservation?.location_label}（期待 ${e.reservation_location}）`);
   if (e.focus_equals && JSON.stringify(r.focus) !== JSON.stringify(e.focus_equals)) fails.push(`focus が ${JSON.stringify(r.focus)}（期待 ${JSON.stringify(e.focus_equals)}）`);
-  for (const b of e.basis_includes ?? []) if (!r.basis.some((x) => x.includes(b))) fails.push(`根拠に「${b}」が無い（${r.basis.join('・')}）`);
+  for (const b of e.basis_includes ?? []) if (!r.basis.some((x) => new RegExp(b).test(x))) fails.push(`根拠に「${b}」が無い（${r.basis.join("・")}）`);
   if (e.max_sentences != null) {
     const n = text.split(/[。！？!?]\s*/).filter((s) => s.trim()).length;
     if (n > e.max_sentences) fails.push(`文が ${n} 個（上限 ${e.max_sentences}）`);

@@ -20,3 +20,19 @@ export function findCue(text: string): CueHit | null {
   consider('stop', STOP);
   return best;
 }
+
+/** 文の中の区切り合図の数（認識中の仮の文も含めて数え、合図を言った時刻を控えるのに使う） */
+export function countSplitCues(text: string): number {
+  let n = 0;
+  let rest = text;
+  for (;;) {
+    let best: { index: number; length: number } | null = null;
+    for (const w of SPLIT) {
+      const i = rest.indexOf(w);
+      if (i >= 0 && (best == null || i < best.index)) best = { index: i, length: w.length };
+    }
+    if (!best) return n;
+    n += 1;
+    rest = rest.slice(best.index + best.length);
+  }
+}

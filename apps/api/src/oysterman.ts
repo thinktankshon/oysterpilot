@@ -5,6 +5,7 @@ import glossaryYaml from '../../../config/glossary.yaml';
 import digestMd from '../../../knowledge/digest.md';
 import reblueViewsMd from '../../../knowledge/reblue_views.md';
 import appHelpMd from '../../../knowledge/app_help.md';
+import generalQaMd from '../../../knowledge/general_qa.md';
 import { getRulesConfig, getRulesYaml } from './rulesConfig';
 import { computeEnv, getSuonada } from './env';
 import { detectTopic, evaluateRules, type Evaluation, type Topic } from './rules';
@@ -14,10 +15,11 @@ import type { Bindings, ReservationRow } from './types';
 const CHAT_MODEL = 'claude-sonnet-5-5';
 // 言い回しの禁止（CLAUDE.md / rules.yaml tone）。返答に含まれたら1回だけ言い直させる。
 // ただし否定形（「必ず死ぬわけではありません」「予測はしません」）と、ユーザーの言葉の引用「…」は断定ではないので除外する。
-const FORBIDDEN = /死にます|必ず|予測/;
-function hasForbidden(text: string): boolean {
+const FORBIDDEN = /死にます|必ず|予測|安全です|最適です/;
+export function hasForbidden(text: string): boolean {
   const t = text
     .replace(/「[^」]*」/g, '')
+    .replace(/(安全|最適)です(?:とは|と)?(言い切れません|言えません|とは限りません|とは限らない|ではありません)/g, '')
     .replace(/必ず(しも)?[^。！？\n]{0,20}?(ではありません|ではない|わけではな|とは限りません|とは限らない|言えません|言い切れません|決まっていません)/g, '')
     .replace(/予測(は|を|も)?[^。！？\n]{0,10}?(しません|できません|ではなく|いたしません|は行いません)/g, '')
     .replace(/死にます[^。！？\n]{0,10}?(とは限りません|とは言えません|とは限らない)/g, '');
@@ -31,8 +33,22 @@ type Reservation = { due_date: string; work: string; reason: string; location_li
 
 export const oysterman = new Hono<{ Bindings: Bindings }>();
 
+// GET /api/oysterman/logs?out_of_scope=1&limit=50  会話ログ（答えられなかった質問の洗い出し用）
+oysterman.get('/logs', async (c) => {
+  const oos = c.req.query('out_of_scope');
+  const fallback = c.req.query('fallback');
+  const limit = Math.min(200, Math.max(1, Number(c.req.query('limit') ?? 50) || 50));
+  const where: string[] = [];
+  if (oos === '1') where.push('out_of_scope = 1');
+  if (fallback === '1') where.push('fallback = 1');
+  const sql = `SELECT * FROM chat_logs${where.length ? ' WHERE ' + where.join(' AND ') : ''} ORDER BY id DESC LIMIT ?`;
+  const { results } = await c.env.DB.prepare(sql).bind(limit).all();
+  return c.json(results);
+});
+
 // POST /api/oysterman/chat  { messages[], scan_report_id? }
 oysterman.post('/chat', async (c) => {
+  const startedAt = Date.now();
   const body = await c.req.json<ChatBody>().catch(() => null);
   if (!body || !Array.isArray(body.messages) || body.messages.length === 0) {
     return c.json({ error: 'messages is required' }, 400);
@@ -114,6 +130,7 @@ oysterman.post('/chat', async (c) => {
     rules_yaml: getRulesYaml(),
     reblue_views: reblueViewsMd,
     digest: digestMd,
+    general_qa: generalQaMd,
     app_help: appHelpMd,
     scan_report: scanReport,
   });
@@ -164,7 +181,7 @@ oysterman.post('/chat', async (c) => {
     if (hasForbidden(collected.text)) {
       res = await callClaude(
         client,
-        system + '\n\n【注意】直前の返答に禁止表現（死にます／必ず／予測）が含まれていました。同じ内容を、断定しない言い方で言い直してください。',
+        system + '\n\n【注意】直前の返答に禁止表現（死にます／必ず／予測／安全です／最適です）が含まれていました。同じ内容を、断定しない言い方で言い直してください。',
         messages,
         tools,
       );
@@ -231,6 +248,29 @@ oysterman.post('/chat', async (c) => {
   }
 
   const firedIds = [...new Set(perLot.flatMap((p) => p.ev.fired_ids))];
+
+  // 6) 会話ログ（答えられなかった質問を後から一覧するため）。失敗しても返答は返す
+  try {
+    await c.env.DB.prepare(
+      'INSERT INTO chat_logs (created_at, question, reply, out_of_scope, out_of_scope_summary, basis, fired_rules, turn_count, fallback, seconds) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+    )
+      .bind(
+        new Date().toISOString(),
+        lastUser,
+        reply,
+        outOfScope ? 1 : 0,
+        outOfScopeSummary,
+        basis.join('、'),
+        JSON.stringify(firedIds),
+        messages.length,
+        reply === FALLBACK_REPLY ? 1 : 0,
+        Math.round((Date.now() - startedAt) / 100) / 10,
+      )
+      .run();
+  } catch (e) {
+    console.error('chat_logs insert failed', e instanceof Error ? e.message : e);
+  }
+
   return c.json({
     reply,
     basis,

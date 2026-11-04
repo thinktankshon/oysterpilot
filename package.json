@@ -8,7 +8,8 @@
     "deploy": "pnpm build && pnpm -C apps/api deploy",
     "test": "pnpm -C apps/api test && pnpm -C apps/web test",
     "eval": "node tests/oysterman_eval/run.ts",
-    "prepare": "git config core.hooksPath .githooks"
+    "prepare": "git config core.hooksPath .githooks",
+    "sweep": "node tests/oysterman_eval/sweep.ts"
   },
   "packageManager": "pnpm@12.16.1"
 }
