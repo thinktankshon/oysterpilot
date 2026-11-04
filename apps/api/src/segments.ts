@@ -21,8 +21,17 @@ segments.post('/', async (c) => {
   return c.json({ id: res.meta.last_row_id }, 201);
 });
 
-// GET /api/segments?status=draft
+// GET /api/segments?status=draft | ?record_id=N（保存済みの記録から元の区切りを引く。status は問わない）
 segments.get('/', async (c) => {
+  const recordId = c.req.query('record_id');
+  if (recordId != null) {
+    const id = Number(recordId);
+    if (!Number.isInteger(id) || id <= 0) return c.json({ error: 'bad record_id' }, 400);
+    const { results } = await c.env.DB.prepare('SELECT * FROM voice_segments WHERE record_id = ? ORDER BY id ASC LIMIT 10')
+      .bind(id)
+      .all<SegmentRow>();
+    return c.json(results);
+  }
   const status = c.req.query('status') ?? 'draft';
   if (!['draft', 'done', 'deleted'].includes(status)) return c.json({ error: 'bad status' }, 400);
   const { results } = await c.env.DB.prepare(

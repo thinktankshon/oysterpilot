@@ -23,6 +23,19 @@ CREATE INDEX idx_records_loc ON records(location_line, location_tier, recorded_a
 -- 0002_segments.sql（11/2 追加）
 ALTER TABLE records ADD COLUMN notes TEXT;      -- 備考（確認表で編集可）
 
+-- 0003_work_forms.sql（11/3 追加）作業別の型
+ALTER TABLE records ADD COLUMN farm TEXT;            -- 漁場（D）
+ALTER TABLE records ADD COLUMN lane INTEGER;         -- レーン
+ALTER TABLE records ADD COLUMN ma_from INTEGER;      -- 間（から）
+ALTER TABLE records ADD COLUMN ma_to INTEGER;        -- 間（まで）
+ALTER TABLE records ADD COLUMN basket_type TEXT;     -- かごの種類（15L/25L）
+ALTER TABLE records ADD COLUMN shell_state TEXT;     -- 刃先が伸びている/ツルツル/普通
+ALTER TABLE records ADD COLUMN meat_quality TEXT;    -- 良/普/悪
+ALTER TABLE records ADD COLUMN fouling INTEGER;      -- 1=あり 0=なし
+ALTER TABLE records ADD COLUMN workers INTEGER;
+ALTER TABLE records ADD COLUMN duration_min INTEGER;
+ALTER TABLE records ADD COLUMN purpose TEXT;         -- 陸揚げの目的
+
 CREATE TABLE voice_segments (                   -- 作業セッションの区切り（生の文。陸で整理して records にする）
   id            INTEGER PRIMARY KEY AUTOINCREMENT,
   session_id    TEXT NOT NULL,                  -- 作業開始ごとの ID（端末で生成）
@@ -65,7 +78,7 @@ CREATE TABLE scan_reports (
 
 | Method | Path | 入力 | 出力 | 使う画面 |
 |---|---|---|---|---|
-| POST | `/api/voysy/extract` | `{text}` | 構造化 JSON（`01_voysy.md`） | Voysy |
+| POST | `/api/voysy/extract` | `{text}` | 作業別の型の JSON（平らな 1 型。不明は null。`01_voysy.md`） | Voysy |
 | POST | `/api/records` | 構造化 JSON ＋ `raw_text` ＋ `notes` | `{id}` | Voysy |
 | POST | `/api/records/bulk` | `{records: [...], segment_id?}`（選別の帯ごとに 1 件、最大 20） | `{ids}` | Voysy |
 | POST | `/api/segments` | `{session_id, seq, recorded_at, raw_text}` | `{id}` | Voysy（作業中） |

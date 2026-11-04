@@ -8,11 +8,11 @@ import {
   isRetryable,
   jstNowIso,
   loadPending,
-  locationLabel,
   saveRecords,
   savePending,
   sendPending,
   toRecordInputs,
+  placeLabel,
   type ExtractItem,
   type ExtractResult,
   type PendingItem,
@@ -23,41 +23,87 @@ import {
 } from '../lib/api';
 import { isSpeechSupported, startSpeech, type SpeechSession } from '../lib/speech';
 import { CUE_HINT, findCue } from '../lib/cues';
+import { SegmentAudio } from '../components/SegmentAudio';
+import { RecordDetail } from '../components/RecordDetail';
+import {
+  deleteAudio,
+  formatDuration,
+  formatSize,
+  isAudioBackupEnabled,
+  isAudioRecordSupported,
+  listAudio,
+  saveAudio,
+  setAudioBackupEnabled,
+  shareAudio,
+  startAudioRecording,
+  type AudioEntry,
+  type AudioRecorder,
+} from '../lib/audio';
 
 // idle: 待機 / session: 作業セッション（ハンズフリー） / recording→confirm→review: 1件だけ記録 / drafts: 陸でチェック
 type Phase = 'idle' | 'session' | 'recording' | 'confirm' | 'review' | 'drafts';
 
-const WORK_TYPES = ['選別', '分殖', '沖出し', '陸揚げ', '揺らし', '移動', 'その他'];
+const FORM_TYPES = ['選別', '沖出し', '陸揚げ', 'その他'];
 const TIERS = ['上段', '中段', '下段'];
+const SHELL_STATES = ['刃先が伸びている', 'ツルツル', '普通'];
+const MEAT = ['良', '普', '悪'];
+const PURPOSES = ['選別', '出荷', '移動'];
 
-// 確認表の項目（表示順）。missing に入った項目は「確認：○○は？」を赤で出す（VO-04）
+// 確認表の項目名（missing の表示に使う）
 const FIELD_LABELS: Record<string, string> = {
-  work_type: '作業',
-  location_line: 'ライン（番）',
-  location_tier: '段',
+  work_type: '作業の種類',
   lot_no: 'ロット番号',
+  farm: '漁場',
+  lane: 'レーン',
+  ma_from: '間（から）',
+  ma_to: '間（まで）',
+  basket_count: 'かご数',
+  purpose: '目的',
   avg_weight_g: 'サイズ（g）',
   count_per_basket: '入数（個/かご）',
+  basket_type: 'かごの種類',
   mortality: '斃死（個）',
-  basket_count: 'かご数',
+  shell_state: '殻の状態',
+  meat_quality: '身入り',
+  fouling: '付着物',
+  workers: '人数',
+  duration_min: '時間（分）',
+  location_line: 'ライン（番）',
+  location_tier: '段',
 };
-const NUM_FIELDS = ['location_line', 'avg_weight_g', 'count_per_basket', 'mortality', 'basket_count'] as const;
-type NumField = (typeof NUM_FIELDS)[number];
 
-const EMPTY_ITEM: ExtractItem = { avg_weight_g: null, count_per_basket: null, basket_count: null };
+const EMPTY_ITEM: ExtractItem = { avg_weight_g: null, count_per_basket: null, basket_count: null, basket_type: null };
 const EMPTY_RESULT: ExtractResult = {
-  work_type: 'その他',
+  work_type: '選別',
+  work_type_guessed: true,
+  lot_no: null,
+  farm: null,
+  lane: null,
+  ma_from: null,
+  ma_to: null,
+  basket_count: null,
+  purpose: null,
+  items: [EMPTY_ITEM],
+  mortality: null,
+  shell_state: null,
+  meat_quality: null,
+  fouling: null,
+  workers: null,
+  duration_min: null,
   location_line: null,
   location_tier: null,
-  lot_no: null,
-  avg_weight_g: null,
-  count_per_basket: null,
-  mortality: null,
-  basket_count: null,
-  items: [EMPTY_ITEM],
-  missing: ['location_line', 'location_tier', 'lot_no', 'avg_weight_g', 'count_per_basket', 'mortality', 'basket_count'],
   notes: null,
+  missing: [],
 };
+
+/** "YYYY-MM-DDTHH:mm" ← ISO（JST 想定） */
+function toLocalInput(iso: string): string {
+  return iso.slice(0, 16);
+}
+/** datetime-local の値 → "YYYY-MM-DDTHH:mm:00+09:00" */
+function fromLocalInput(v: string): string {
+  return v.length >= 16 ? `${v.slice(0, 16)}:00+09:00` : v;
+}
 
 export function Voysy() {
   const [phase, setPhase] = useState<Phase>('idle');
@@ -70,6 +116,7 @@ export function Voysy() {
   const [listError, setListError] = useState<string | null>(null);
   const [reservations, setReservations] = useState<ReservationRow[]>([]);
   const [result, setResult] = useState<ExtractResult>(EMPTY_RESULT);
+  const [recordedAt, setRecordedAt] = useState<string>(''); // 確認表で編集できる日時（JST）
   const [extracting, setExtracting] = useState(false);
   const [saving, setSaving] = useState(false);
   const [pending, setPending] = useState<PendingItem[]>(() => loadPending());
@@ -86,6 +133,17 @@ export function Voysy() {
   const wakeLockRef = useRef<WakeLockSentinel | null>(null);
   const draftSavedRef = useRef<Map<number, string>>(new Map());
   const supported = isSpeechSupported();
+  // VO-15: 生音声のバックアップ（端末内に保存。文字起こしが崩れたときに聞き直す）
+  const audioRef = useRef<AudioRecorder | null>(null);
+  const audioIdRef = useRef(''); // 録音に付ける ID（作業セッションは session_id、1件記録は r-…）
+  const audioStartRef = useRef('');
+  const [audioOn, setAudioOn] = useState<boolean>(() => isAudioBackupEnabled());
+  const [audioLive, setAudioLive] = useState<'none' | 'rec' | 'na'>('none');
+  const [audios, setAudios] = useState<AudioEntry[]>([]);
+  const [lastAudioId, setLastAudioId] = useState<string | null>(null); // 1件だけ記録の直近の録音
+  // 直近の記録の詳細：開いている行と、記録番号 → 元の区切り（null は区切り無し）
+  const [openRecord, setOpenRecord] = useState<string | null>(null);
+  const [segByRecord, setSegByRecord] = useState<Map<number, SegmentRow | null>>(new Map());
 
   const showToast = (msg: string) => {
     setToast(msg);
@@ -102,6 +160,57 @@ export function Voysy() {
     }
   }, []);
 
+  const loadAudios = useCallback(async () => {
+    try {
+      setAudios(await listAudio());
+    } catch {
+      setAudios([]);
+    }
+  }, []);
+
+  // 録音を始める。音声認識を起動した「あと」に、ボタン押下の流れの中で呼ぶ。失敗しても文字起こしは続く
+  const beginAudio = (id: string) => {
+    audioRef.current = null;
+    audioIdRef.current = id;
+    setLastAudioId(null);
+    audioStartRef.current = jstNowIso();
+    if (!audioOn || !isAudioRecordSupported()) {
+      setAudioLive('na');
+      return;
+    }
+    setAudioLive('none');
+    void startAudioRecording().then((r) => {
+      audioRef.current = r;
+      setAudioLive(r ? 'rec' : 'na');
+    });
+  };
+
+  // 録音を止めて端末内に保存する。保存できたら true
+  const endAudio = async (): Promise<boolean> => {
+    const r = audioRef.current;
+    audioRef.current = null;
+    setAudioLive('none');
+    if (!r) return false;
+    try {
+      const out = await r.stop();
+      if (!out) return false;
+      await saveAudio({
+        session_id: audioIdRef.current,
+        recorded_at: audioStartRef.current,
+        mime: out.mime,
+        duration_ms: out.duration_ms,
+        size: out.blob.size,
+        marks: out.marks,
+        blob: out.blob,
+      });
+      setLastAudioId(audioIdRef.current);
+      await loadAudios();
+      return true;
+    } catch {
+      return false;
+    }
+  };
+
   const loadRecent = useCallback(async () => {
     try {
       setRecent(await api<RecordRow[]>('/api/records?limit=12'));
@@ -115,7 +224,8 @@ export function Voysy() {
       setReservations([]);
     }
     await loadDrafts();
-  }, [loadDrafts]);
+    await loadAudios();
+  }, [loadDrafts, loadAudios]);
 
   useEffect(() => {
     void loadRecent();
@@ -177,9 +287,16 @@ export function Voysy() {
   const finishSession = async (remaining: string) => {
     await commitSegment(remaining);
     releaseWakeLock();
+    const savedAudio = await endAudio();
     const n = seqRef.current;
     setPhase('idle');
-    showToast(n > 0 ? `${n}件を記録しました（陸でチェック）` : '記録はありませんでした');
+    showToast(
+      n > 0
+        ? `${n}件を記録しました（陸でチェック）${savedAudio ? '・録音も保存' : ''}`
+        : savedAudio
+          ? '記録はありませんでした（録音は保存）'
+          : '記録はありませんでした',
+    );
     await loadRecent();
   };
 
@@ -193,6 +310,8 @@ export function Voysy() {
     const before = f.slice(0, hit.index);
     const after = f.slice(hit.index + hit.length);
     if (hit.type === 'split') {
+      // 合図の位置を録音の印に残す（次の区切りの頭出し用）
+      audioRef.current?.mark(seqRef.current + 1);
       void commitSegment(before);
       sessionRef.current?.reset(after);
       setFinalText(after);
@@ -230,6 +349,7 @@ export function Voysy() {
       return;
     }
     sessionRef.current = session;
+    beginAudio(sessionIdRef.current);
     void requestWakeLock();
     setPhase('session');
   };
@@ -247,6 +367,7 @@ export function Voysy() {
     setFinalText('');
     setInterimText('');
     setCurrentSegmentId(null);
+    setRecordedAt('');
     if (!supported) {
       // VO-09: 非対応なら textarea に直接入力（iPhone のキーボード音声入力でも可）
       setDraft('');
@@ -261,6 +382,7 @@ export function Voysy() {
       onError: (msg) => setError(msg),
       onEnd: (f) => {
         sessionRef.current = null;
+        void endAudio();
         setDraft(f.trim());
         setInterimText('');
         setPhase('confirm');
@@ -273,6 +395,7 @@ export function Voysy() {
       return;
     }
     sessionRef.current = session;
+    beginAudio(`r-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`);
     setPhase('recording');
   };
 
@@ -301,7 +424,8 @@ export function Voysy() {
         method: 'POST',
         body: JSON.stringify({ text }),
       });
-      setResult({ ...r, items: r.items.length ? r.items : [EMPTY_ITEM] });
+      setResult({ ...r, items: r.work_type === '選別' && r.items.length === 0 ? [EMPTY_ITEM] : r.items });
+      setRecordedAt((cur) => cur || jstNowIso());
       setPhase('review');
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
@@ -316,12 +440,21 @@ export function Voysy() {
   const manualEntry = () => {
     setError(null);
     setResult(EMPTY_RESULT);
+    setRecordedAt((cur) => cur || jstNowIso());
     setPhase('review');
   };
 
   const setField = <K extends keyof ExtractResult>(key: K, value: ExtractResult[K]) =>
     setResult((r) => ({ ...r, [key]: value }));
 
+  const changeWorkType = (w: string) =>
+    setResult((r) => ({
+      ...r,
+      work_type: w,
+      work_type_guessed: false,
+      missing: r.missing.filter((m) => m !== 'work_type'),
+      items: w === '選別' && r.items.length === 0 ? [EMPTY_ITEM] : w === '選別' ? r.items : [],
+    }));
   const setItem = (i: number, patch: Partial<ExtractItem>) =>
     setResult((r) => ({ ...r, items: r.items.map((it, j) => (j === i ? { ...it, ...patch } : it)) }));
   const addItem = () => setResult((r) => ({ ...r, items: [...r.items, EMPTY_ITEM] }));
@@ -332,12 +465,12 @@ export function Voysy() {
   const save = async () => {
     setError(null);
     setSaving(true);
-    const inputs = toRecordInputs(result, draft.trim() || '（手入力）');
+    const inputs = toRecordInputs(result, draft.trim() || '（手入力）', recordedAt || undefined);
     const segId = currentSegmentId;
     try {
       await saveRecords(inputs, segId ?? undefined);
       setCurrentSegmentId(null);
-      showToast(inputs.length > 1 ? `${inputs.length}件（サイズ帯ごと）保存しました` : '保存しました');
+      showToast(inputs.length > 1 ? `${inputs.length}件（サイズ帯ごと）保存しました` : `${result.work_type}を保存しました`);
       await loadRecent();
       if (segId != null) {
         const rest = (await api<SegmentRow[]>('/api/segments?status=draft').catch(() => [])).filter((d) => d.id !== segId);
@@ -389,6 +522,59 @@ export function Voysy() {
     setError(null);
     setPhase('drafts');
     void loadDrafts();
+    void loadAudios();
+  };
+
+  // ---------- 直近の記録の詳細 ----------
+
+  const toggleRecord = (key: string, firstId: number) => {
+    if (openRecord === key) {
+      setOpenRecord(null);
+      return;
+    }
+    setOpenRecord(key);
+    if (segByRecord.has(firstId)) return;
+    api<SegmentRow[]>(`/api/segments?record_id=${firstId}`)
+      .then((list) => setSegByRecord((m) => new Map(m).set(firstId, list[0] ?? null)))
+      .catch(() => setSegByRecord((m) => new Map(m).set(firstId, null)));
+  };
+
+  // ---------- 録音（VO-15）：区切りごとの再生は SegmentAudio。ここはファイルの共有と削除 ----------
+
+  const audioBySession = new Map(audios.map((a) => [a.session_id, a]));
+  /** 確認画面・確認表で聞く録音：区切りから来たらその区切り、1件記録なら直近の録音全体 */
+  const currentAudio = (() => {
+    if (currentSegmentId != null) {
+      const d = drafts.find((x) => x.id === currentSegmentId);
+      const entry = d ? audioBySession.get(d.session_id) : undefined;
+      return entry && d ? { entry, seq: d.seq } : null;
+    }
+    const entry = lastAudioId ? audioBySession.get(lastAudioId) : undefined;
+    return entry ? { entry, seq: null } : null;
+  })();
+
+  // iOS の共有シートはタップ直後にしか開かないので、await を挟まずに呼ぶ
+  const shareOne = (entry: AudioEntry) => {
+    shareAudio(entry)
+      .then((ok) => {
+        if (ok) showToast('共有しました');
+      })
+      .catch((e: unknown) => setError(e instanceof Error ? e.message : String(e)));
+  };
+
+  const deleteOne = async (id: string) => {
+    if (!window.confirm('この録音を削除しますか？（端末から消えます）')) return;
+    try {
+      await deleteAudio(id);
+      setAudios((list) => list.filter((a) => a.session_id !== id));
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    }
+  };
+
+  const toggleAudio = (on: boolean) => {
+    setAudioOn(on);
+    setAudioBackupEnabled(on);
   };
 
   const editDraft = (id: number, text: string) =>
@@ -419,14 +605,16 @@ export function Voysy() {
   const organizeDraft = (d: SegmentRow) => {
     setDraft(d.raw_text.trim());
     setCurrentSegmentId(d.id);
+    setRecordedAt(d.recorded_at);
     setPhase('confirm');
     void extract(d.raw_text.trim());
   };
 
-  // いま空のままの missing 項目だけ「確認」に出す
+  // 「確認」に出すのは、聞き間違いの疑いがある項目と、推定した作業の種類だけ（言わなかった項目は催促しない）
   const openMissing = result.missing.filter((f) => {
-    if (f === 'avg_weight_g' || f === 'count_per_basket' || f === 'basket_count') {
-      return result.items.every((it) => it[f] == null);
+    if (f === 'work_type') return result.work_type_guessed;
+    if (f === 'avg_weight_g' || f === 'count_per_basket' || f === 'basket_count' || f === 'basket_type') {
+      return result.work_type === '選別' ? result.items.some((it) => it[f as keyof ExtractItem] == null) : result[f as 'basket_count'] == null;
     }
     const v = result[f as keyof ExtractResult];
     return v == null || v === '';
@@ -464,18 +652,31 @@ export function Voysy() {
             {!listError && recent.length === 0 && <p className="muted">まだ記録がありません</p>}
             <ul className="record-list">
               {groupRecords(recent)
-                .slice(0, 3)
-                .map((g) => (
-                  <li key={g.key} className="record-row">
-                    <span className="record-date">{formatDate(g.recorded_at)}</span>
-                    <span className="record-loc">
-                      {g.rows[0].location_line != null ? locationLabel(g.rows[0]) : g.rows[0].lot_no ?? '場所なし'}
-                      {g.rows[0].location_line != null && g.rows[0].lot_no ? ` ${g.rows[0].lot_no}` : ''}
-                    </span>
-                    <span className="record-work">{g.work_type}</span>
-                    <span className="record-nums">{g.rows.map(bandLabel).filter(Boolean).join('／')}</span>
-                  </li>
-                ))}
+                .slice(0, 5)
+                .map((g) => {
+                  const open = openRecord === g.key;
+                  const seg = segByRecord.get(g.rows[0].id);
+                  return (
+                    <li key={g.key} className={`record-item${open ? ' open' : ''}`}>
+                      <button
+                        type="button"
+                        className="record-row clickable"
+                        onClick={() => toggleRecord(g.key, g.rows[0].id)}
+                        aria-expanded={open}
+                      >
+                        <span className="record-date">{formatDate(g.recorded_at)}</span>
+                        <span className="record-loc">
+                          {g.rows[0].lot_no ?? ''}
+                          {placeLabel(g.rows[0]) ? ` ${placeLabel(g.rows[0])}` : ''}
+                        </span>
+                        <span className="record-work">{g.work_type}</span>
+                        <span className="record-nums">{summaryLine(g.rows)}</span>
+                        <span className="record-chev" aria-hidden="true">{open ? '▲' : '▼'}</span>
+                      </button>
+                      {open && <RecordDetail group={g} segment={seg} audio={seg ? audioBySession.get(seg.session_id) : undefined} />}
+                    </li>
+                  );
+                })}
             </ul>
           </div>
 
@@ -487,7 +688,7 @@ export function Voysy() {
               {reservations.map((r) => (
                 <li key={r.id} className="record-row">
                   <span className="record-date">{formatDay(r.due_date)}</span>
-                  <span className="record-loc">{locationLabel(r)}</span>
+                  <span className="record-loc">{r.location_line != null ? `${r.location_line}番ライン${r.location_tier ? '・' + r.location_tier : ''}` : ''}</span>
                   <span className="record-work">予定</span>
                   <span className="record-nums">{r.work}</span>
                 </li>
@@ -511,6 +712,12 @@ export function Voysy() {
           <p className="cue-hint">
             「{CUE_HINT.split}」で区切り、「{CUE_HINT.stop}」で終了
           </p>
+          {isAudioRecordSupported() && (
+            <label className="audio-toggle">
+              <input type="checkbox" checked={audioOn} onChange={(e) => toggleAudio(e.target.checked)} />
+              <span>生音声も端末に残す（聞き直し用）</span>
+            </label>
+          )}
         </>
       )}
 
@@ -524,6 +731,8 @@ export function Voysy() {
           </p>
           <div className="seg-count">
             記録 <strong>{segCount}</strong> 件
+            {audioLive === 'rec' && <span className="audio-state rec">● 録音中</span>}
+            {audioLive === 'na' && <span className="audio-state">文字のみ</span>}
           </div>
           <div className="transcript live" aria-live="polite">
             {finalText}
@@ -571,6 +780,7 @@ export function Voysy() {
             rows={6}
             placeholder="例：3番の上段、選別した。36グラムぐらい、1かご45個のまま、死んだの8個、かごは6つ"
           />
+          {currentAudio && <SegmentAudio key={`${currentAudio.entry.session_id}-${currentAudio.seq ?? 0}`} entry={currentAudio.entry} seq={currentAudio.seq} />}
           {error && (
             <div className="error-box">
               <p className="error">{error}</p>
@@ -604,26 +814,30 @@ export function Voysy() {
           <h1 className="title">記録の確認</h1>
           <p className="lead">違っていれば直してから「保存」。</p>
 
-          {(openMissing.length > 0 || result.items.some((it) => it.avg_weight_g == null || it.count_per_basket == null || it.basket_count == null)) && (
+          {/* 原文は確認表の上に常時表示し、音声もその直下に置く（見比べながら直す） */}
+          <div className="raw-box">
+            <div className="raw-label">元の発話</div>
+            <p className="raw-text">{draft || '（なし）'}</p>
+          </div>
+          {currentAudio && <SegmentAudio key={`${currentAudio.entry.session_id}-${currentAudio.seq ?? 0}`} entry={currentAudio.entry} seq={currentAudio.seq} />}
+
+          {openMissing.length > 0 && (
             <ul className="missing-list">
-              {openMissing
-                .filter((f) => f !== 'avg_weight_g' && f !== 'count_per_basket' && f !== 'basket_count')
-                .map((f) => (
-                  <li key={f}>確認：{FIELD_LABELS[f] ?? f}は？</li>
-                ))}
-              {result.items.some((it) => it.avg_weight_g == null || it.count_per_basket == null || it.basket_count == null) && (
-                <li key="bands">確認：サイズ帯に空欄があります（聞き取れなかった数字、または 200g 超などあり得ない値）</li>
-              )}
+              {openMissing.map((f) => (
+                <li key={f}>
+                  {f === 'work_type' ? `確認：作業の種類は「${result.work_type}」で合っていますか？` : `確認：${FIELD_LABELS[f] ?? f}（聞き取れなかったか、あり得ない値）`}
+                </li>
+              ))}
             </ul>
           )}
 
           <table className="review-table">
             <tbody>
-              <tr>
-                <th>{FIELD_LABELS.work_type}</th>
+              <tr className={result.work_type_guessed ? 'is-missing' : ''}>
+                <th>作業の種類</th>
                 <td>
-                  <select value={result.work_type} onChange={(e) => setField('work_type', e.target.value)}>
-                    {WORK_TYPES.map((w) => (
+                  <select value={result.work_type} onChange={(e) => changeWorkType(e.target.value)}>
+                    {FORM_TYPES.map((w) => (
                       <option key={w} value={w}>
                         {w}
                       </option>
@@ -631,45 +845,121 @@ export function Voysy() {
                   </select>
                 </td>
               </tr>
-              <tr className={openMissing.includes('location_line') ? 'is-missing' : ''}>
-                <th>
-                  {FIELD_LABELS.location_line}
-                  {result.work_type === '選別' && <small className="th-note">選別時は未確定でよい</small>}
-                </th>
-                <td>{numberInput('location_line', result, setField)}</td>
-              </tr>
-              <tr className={openMissing.includes('location_tier') ? 'is-missing' : ''}>
-                <th>{FIELD_LABELS.location_tier}</th>
+              <tr>
+                <th>日時</th>
                 <td>
-                  <select
-                    value={result.location_tier ?? ''}
-                    onChange={(e) => setField('location_tier', e.target.value || null)}
-                  >
-                    <option value="">（未入力）</option>
-                    {TIERS.map((t) => (
-                      <option key={t} value={t}>
-                        {t}
-                      </option>
-                    ))}
-                  </select>
+                  <input type="datetime-local" value={toLocalInput(recordedAt || jstNowIso())} onChange={(e) => setRecordedAt(fromLocalInput(e.target.value))} />
                 </td>
               </tr>
               <tr className={openMissing.includes('lot_no') ? 'is-missing' : ''}>
-                <th>{FIELD_LABELS.lot_no}</th>
+                <th>ロット番号</th>
                 <td>
-                  <input
-                    type="text"
-                    value={result.lot_no ?? ''}
-                    placeholder="例：L-01"
-                    onChange={(e) => setField('lot_no', e.target.value || null)}
-                  />
+                  <input type="text" value={result.lot_no ?? ''} placeholder="例：R8-K3" onChange={(e) => setField('lot_no', e.target.value || null)} />
                 </td>
               </tr>
-              <tr className={openMissing.includes('mortality') ? 'is-missing' : ''}>
-                <th>{FIELD_LABELS.mortality}</th>
-                <td>{numberInput('mortality', result, setField)}</td>
-              </tr>
-              {/* VO-14: メモは編集できる */}
+
+              {(result.work_type === '沖出し' || result.work_type === '陸揚げ') && (
+                <>
+                  <tr className={openMissing.includes('farm') || openMissing.includes('lane') ? 'is-missing' : ''}>
+                    <th>場所</th>
+                    <td className="place-inputs">
+                      <input type="text" value={result.farm ?? ''} placeholder="漁場（D）" onChange={(e) => setField('farm', e.target.value || null)} />
+                      <input type="number" inputMode="numeric" min={1} value={result.lane ?? ''} placeholder="レーン" onChange={(e) => setField('lane', numOrNull(e.target.value))} />
+                    </td>
+                  </tr>
+                  <tr className={openMissing.includes('ma_from') || openMissing.includes('ma_to') ? 'is-missing' : ''}>
+                    <th>間（から〜まで）</th>
+                    <td className="place-inputs">
+                      <input type="number" inputMode="numeric" min={1} value={result.ma_from ?? ''} placeholder="から" onChange={(e) => setField('ma_from', numOrNull(e.target.value))} />
+                      <input type="number" inputMode="numeric" min={1} value={result.ma_to ?? ''} placeholder="まで" onChange={(e) => setField('ma_to', numOrNull(e.target.value))} />
+                    </td>
+                  </tr>
+                  <tr className={openMissing.includes('basket_count') ? 'is-missing' : ''}>
+                    <th>かご数</th>
+                    <td>
+                      <input type="number" inputMode="numeric" min={0} value={result.basket_count ?? ''} placeholder="—" onChange={(e) => setField('basket_count', numOrNull(e.target.value))} />
+                    </td>
+                  </tr>
+                </>
+              )}
+
+              {result.work_type === '陸揚げ' && (
+                <tr>
+                  <th>目的</th>
+                  <td>
+                    <select value={result.purpose ?? ''} onChange={(e) => setField('purpose', e.target.value || null)}>
+                      <option value="">（未入力）</option>
+                      {PURPOSES.map((p) => (
+                        <option key={p} value={p}>
+                          {p}
+                        </option>
+                      ))}
+                    </select>
+                  </td>
+                </tr>
+              )}
+
+              {result.work_type === '選別' && (
+                <>
+                  <tr className={openMissing.includes('mortality') ? 'is-missing' : ''}>
+                    <th>斃死（個・合計）</th>
+                    <td>
+                      <input type="number" inputMode="numeric" min={0} value={result.mortality ?? ''} placeholder="—" onChange={(e) => setField('mortality', numOrNull(e.target.value))} />
+                    </td>
+                  </tr>
+                  <tr>
+                    <th>殻の状態</th>
+                    <td>
+                      <select value={result.shell_state ?? ''} onChange={(e) => setField('shell_state', e.target.value || null)}>
+                        <option value="">（未入力）</option>
+                        {SHELL_STATES.map((v) => (
+                          <option key={v} value={v}>
+                            {v}
+                          </option>
+                        ))}
+                      </select>
+                    </td>
+                  </tr>
+                  <tr>
+                    <th>身入り（任意）</th>
+                    <td>
+                      <select value={result.meat_quality ?? ''} onChange={(e) => setField('meat_quality', e.target.value || null)}>
+                        <option value="">（未入力）</option>
+                        {MEAT.map((v) => (
+                          <option key={v} value={v}>
+                            {v}
+                          </option>
+                        ))}
+                      </select>
+                    </td>
+                  </tr>
+                  <tr>
+                    <th>付着物</th>
+                    <td>
+                      <select value={result.fouling == null ? '' : result.fouling ? 'あり' : 'なし'} onChange={(e) => setField('fouling', e.target.value === '' ? null : e.target.value === 'あり')}>
+                        <option value="">（未入力）</option>
+                        <option value="あり">あり</option>
+                        <option value="なし">なし</option>
+                      </select>
+                    </td>
+                  </tr>
+                  <tr>
+                    <th>人数・時間（任意）</th>
+                    <td className="place-inputs">
+                      <input type="number" inputMode="numeric" min={1} value={result.workers ?? ''} placeholder="人" onChange={(e) => setField('workers', numOrNull(e.target.value))} />
+                      <input type="number" inputMode="numeric" min={1} value={result.duration_min ?? ''} placeholder="分" onChange={(e) => setField('duration_min', numOrNull(e.target.value))} />
+                    </td>
+                  </tr>
+                </>
+              )}
+
+              {result.work_type === 'その他' && (
+                <tr>
+                  <th>内容</th>
+                  <td className="notes">項目は付けず、下のメモと元の発話を記録として残します</td>
+                </tr>
+              )}
+
               <tr>
                 <th>メモ</th>
                 <td>
@@ -677,7 +967,7 @@ export function Voysy() {
                     className="notes-input"
                     value={result.notes ?? ''}
                     rows={2}
-                    placeholder="例：殻が伸びている"
+                    placeholder="項目に入らなかった発言は、ここに全部残ります"
                     onChange={(e) => setField('notes', e.target.value || null)}
                   />
                 </td>
@@ -685,42 +975,41 @@ export function Voysy() {
             </tbody>
           </table>
 
-          {/* 選別のサイズ帯：帯ごとに 1 件の記録になる */}
-          <div className="bands">
-            <div className="bands-head">
-              <span>サイズ帯（{result.items.length}）</span>
-              <button type="button" className="btn small ghost" onClick={addItem}>
-                帯を追加
-              </button>
-            </div>
-            {/* 帯のどれかが空（聞き間違いで落とした値を含む）なら赤枠で知らせる */}
-            {result.items.map((it, i) => (
-              <div key={i} className={'band' + (it.avg_weight_g == null || it.count_per_basket == null || it.basket_count == null ? ' is-missing' : '')}>
-                <label>
-                  <span>サイズ（g）</span>
-                  <input type="number" inputMode="numeric" min={0} value={it.avg_weight_g ?? ''} placeholder="—" onChange={(e) => setItem(i, { avg_weight_g: numOrNull(e.target.value) })} />
-                </label>
-                <label>
-                  <span>入数（個/かご）</span>
-                  <input type="number" inputMode="numeric" min={0} value={it.count_per_basket ?? ''} placeholder="—" onChange={(e) => setItem(i, { count_per_basket: numOrNull(e.target.value) })} />
-                </label>
-                <label>
-                  <span>かご数</span>
-                  <input type="number" inputMode="numeric" min={0} value={it.basket_count ?? ''} placeholder="—" onChange={(e) => setItem(i, { basket_count: numOrNull(e.target.value) })} />
-                </label>
-                {result.items.length > 1 && (
-                  <button type="button" className="band-remove" onClick={() => removeItem(i)} aria-label="この帯を削除">
-                    ×
-                  </button>
-                )}
+          {result.work_type === '選別' && (
+            <div className="bands">
+              <div className="bands-head">
+                <span>サイズ帯（{result.items.length}）</span>
+                <button type="button" className="btn small ghost" onClick={addItem}>
+                  帯を追加
+                </button>
               </div>
-            ))}
-          </div>
-
-          <details className="raw">
-            <summary>元の発話</summary>
-            <p>{draft || '（なし）'}</p>
-          </details>
+              {result.items.map((it, i) => (
+                <div key={i} className={'band' + (it.avg_weight_g == null || it.count_per_basket == null || it.basket_count == null ? ' is-missing' : '')}>
+                  <label>
+                    <span>サイズ（g）</span>
+                    <input type="number" inputMode="numeric" min={0} value={it.avg_weight_g ?? ''} placeholder="—" onChange={(e) => setItem(i, { avg_weight_g: numOrNull(e.target.value) })} />
+                  </label>
+                  <label>
+                    <span>入数（個/かご）</span>
+                    <input type="number" inputMode="numeric" min={0} value={it.count_per_basket ?? ''} placeholder="—" onChange={(e) => setItem(i, { count_per_basket: numOrNull(e.target.value) })} />
+                  </label>
+                  <label>
+                    <span>かご数</span>
+                    <input type="number" inputMode="numeric" min={0} value={it.basket_count ?? ''} placeholder="—" onChange={(e) => setItem(i, { basket_count: numOrNull(e.target.value) })} />
+                  </label>
+                  <label className="band-wide">
+                    <span>かごの種類</span>
+                    <input type="text" value={it.basket_type ?? ''} placeholder="例：15L" onChange={(e) => setItem(i, { basket_type: e.target.value || null })} />
+                  </label>
+                  {result.items.length > 1 && (
+                    <button type="button" className="band-remove" onClick={() => removeItem(i)} aria-label="この帯を削除">
+                      ×
+                    </button>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
 
           {error && <p className="error">{error}</p>}
           <div className="actions">
@@ -762,6 +1051,9 @@ export function Voysy() {
                   onChange={(e) => editDraft(d.id, e.target.value)}
                   onBlur={() => persistDraft(d)}
                 />
+                {audioBySession.has(d.session_id) && (
+                  <SegmentAudio key={`${d.session_id}-${d.seq}`} entry={audioBySession.get(d.session_id)!} seq={d.seq} />
+                )}
                 <div className="draft-actions">
                   <button type="button" className="btn primary small" onClick={() => organizeDraft(d)}>
                     整理する
@@ -773,6 +1065,33 @@ export function Voysy() {
               </li>
             ))}
           </ul>
+          {audios.length > 0 && (
+            <div className="card">
+              <h2 className="card-title">録音ファイル（共有・削除）</h2>
+              <p className="muted small-note">区切りごとの再生は上の各記録から。残したい録音は「共有して保存」でファイルやドライブへ。端末の中だけに残ります。</p>
+              <ul className="audio-list">
+                {audios.map((a) => (
+                  <li key={a.session_id} className="draft">
+                    <div className="draft-head">
+                      <span>{formatDate(a.recorded_at)}</span>
+                      <span className="muted">
+                        {formatDuration(a.duration_ms)}・{formatSize(a.size)}
+                        {a.marks.length > 0 ? `・区切り${a.marks.length}` : ''}
+                      </span>
+                    </div>
+                    <div className="draft-actions audio-file-actions">
+                      <button type="button" className="btn small" onClick={() => shareOne(a)}>
+                        共有して保存
+                      </button>
+                      <button type="button" className="btn ghost small" onClick={() => deleteOne(a.session_id)}>
+                        削除
+                      </button>
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
           {error && <p className="error">{error}</p>}
           <div className="actions">
             <button type="button" className="btn ghost" onClick={() => setPhase('idle')}>
@@ -791,40 +1110,33 @@ export function Voysy() {
   );
 }
 
-function numberInput(
-  field: NumField,
-  result: ExtractResult,
-  setField: <K extends keyof ExtractResult>(key: K, value: ExtractResult[K]) => void,
-) {
-  const v = result[field];
-  return (
-    <input
-      type="number"
-      inputMode="numeric"
-      min={0}
-      value={v ?? ''}
-      placeholder="—"
-      onChange={(e) => {
-        const n = e.target.value === '' ? null : Math.max(0, Math.floor(Number(e.target.value)));
-        setField(field, n != null && Number.isFinite(n) ? n : null);
-      }}
-    />
-  );
-}
-
 function numOrNull(v: string): number | null {
   if (v === '') return null;
   const n = Math.max(0, Math.floor(Number(v)));
   return Number.isFinite(n) ? n : null;
 }
 
-/** 一覧用：30g×60個×10カゴ */
-function bandLabel(r: RecordRow): string {
+/** 一覧用の要約：選別は帯ごと「30g×60個×10かご」、沖出し・陸揚げは「40かご（選別のため）」 */
+function summaryLine(rows: RecordRow[]): string {
+  const r0 = rows[0];
+  if (r0.work_type === '選別') {
+    return rows
+      .map((r) => {
+        const parts: string[] = [];
+        if (r.avg_weight_g != null) parts.push(`${r.avg_weight_g}g`);
+        if (r.count_per_basket != null) parts.push(`${r.count_per_basket}個`);
+        if (r.basket_count != null) parts.push(`${r.basket_count}かご`);
+        if (r.basket_type) parts.push(r.basket_type);
+        return parts.join('×');
+      })
+      .filter(Boolean)
+      .join('／');
+  }
   const parts: string[] = [];
-  if (r.avg_weight_g != null) parts.push(`${r.avg_weight_g}g`);
-  if (r.count_per_basket != null) parts.push(`${r.count_per_basket}個`);
-  if (r.basket_count != null) parts.push(`${r.basket_count}カゴ`);
-  return parts.join('×');
+  if (r0.basket_count != null) parts.push(`${r0.basket_count}かご`);
+  if (r0.purpose) parts.push(`（${r0.purpose}のため）`);
+  if (!parts.length && r0.notes) parts.push(r0.notes.slice(0, 30));
+  return parts.join('');
 }
 
 /** 区切りの文を整える：前後の空白と句読点だけの残りを落とす */

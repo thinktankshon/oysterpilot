@@ -3,114 +3,123 @@ import Anthropic from '@anthropic-ai/sdk';
 import { parse } from 'yaml';
 import extractPrompt from '../../../prompts/voysy_extract.md';
 import glossaryYaml from '../../../config/glossary.yaml';
-import { WORK_TYPES, type Bindings, type WorkType } from './types';
+import type { Bindings } from './types';
+import { normalizeLot, normalizeFarm, normalizeBasketType, parsePlaceFromText, lotFromText, basketCountFromText } from './voysyParse';
 
 // 抽出は軽量モデルで十分（docs/01）。応答 3 秒以内を目標。
 const EXTRACT_MODEL = 'claude-haiku-5-5';
 const TIERS = ['上段', '中段', '下段'] as const;
+// 記録の型（docs/01 11/3）：選別（陸上）・沖出し（海上）・陸揚げ（海上）・その他。分殖は選別に含める
+export const FORM_TYPES = ['選別', '沖出し', '陸揚げ', 'その他'] as const;
+export type FormType = (typeof FORM_TYPES)[number];
+const SHELL_STATES = ['刃先が伸びている', 'ツルツル', '普通'] as const;
+const MEAT = ['良', '普', '悪'] as const;
+const PURPOSES = ['選別', '出荷', '移動'] as const;
 
 export type ExtractItem = {
   avg_weight_g: number | null;
   count_per_basket: number | null;
   basket_count: number | null;
+  basket_type: string | null;
 };
 
 export type ExtractResult = {
-  work_type: WorkType;
+  work_type: FormType;
+  work_type_guessed: boolean;
+  lot_no: string | null;
+  // 沖出し・陸揚げ：場所（漁場・レーン・間 から〜まで）とかご数
+  farm: string | null;
+  lane: number | null;
+  ma_from: number | null;
+  ma_to: number | null;
+  basket_count: number | null;
+  purpose: (typeof PURPOSES)[number] | null; // 陸揚げ
+  // 選別
+  items: ExtractItem[];
+  mortality: number | null;
+  shell_state: (typeof SHELL_STATES)[number] | null;
+  meat_quality: (typeof MEAT)[number] | null;
+  fouling: boolean | null;
+  workers: number | null;
+  duration_min: number | null;
+  // 旧表記（seed や AI Oysterman の互換用）。言われたときだけ
   location_line: number | null;
   location_tier: (typeof TIERS)[number] | null;
-  lot_no: string | null;
-  avg_weight_g: number | null;
-  count_per_basket: number | null;
-  mortality: number | null;
-  basket_count: number | null;
-  items: ExtractItem[]; // 選別の複数サイズ帯。帯が 1 つなら 1 要素
-  missing: string[];
   notes: string | null;
+  missing: string[]; // 聞き間違いの疑いがある項目、推定した work_type だけ
 };
 
 // 用語集（config/glossary.yaml）からロット型と数値の妥当範囲を読む
 type Glossary = {
   lot_format?: { regex?: string; current_prefix?: string };
-  plausible_ranges?: Partial<Record<'avg_weight_g' | 'count_per_basket' | 'basket_count' | 'mortality', [number, number]>>;
+  plausible_ranges?: Partial<Record<string, [number, number]>>;
 };
 const glossary = parse(glossaryYaml) as Glossary;
-const LOT_REGEX = new RegExp(glossary.lot_format?.regex ?? '^R\\d{1,2}-K\\d{1,2}$');
 const LOT_CURRENT_PREFIX = glossary.lot_format?.current_prefix ?? 'R8';
 const RANGES = glossary.plausible_ranges ?? {};
 
-/** 妥当範囲の外は聞き間違いとみなして null */
-function inRange(field: keyof NonNullable<Glossary['plausible_ranges']>, v: number | null): number | null {
+function inRange(field: string, v: number | null): number | null {
   if (v == null) return null;
   const r = RANGES[field];
   if (!r) return v;
   return v >= r[0] && v <= r[1] ? v : null;
 }
 
-// prompts/voysy_extract.md のスキーマを JSON Schema にしたもの（構造化出力で強制）
+// 構造化出力は union 型（null 許容・anyOf）が 16 個までという制限があるので、null を使わず
+// 「不明な数値は -1、不明な文字は空文字」で受けて normalize() で null に戻す。
+const INT = { type: 'integer', description: '不明なら -1' } as const;
+const STR = { type: 'string', description: '不明なら空文字' } as const;
+const enumOrEmpty = (vals: readonly string[], desc: string) => ({ type: 'string', enum: [...vals, ''], description: `${desc}。不明なら空文字` });
+
 const extractSchema = {
   type: 'object',
   properties: {
-    work_type: { type: 'string', enum: [...WORK_TYPES] },
-    location_line: { type: ['integer', 'null'] },
-    location_tier: { anyOf: [{ type: 'string', enum: [...TIERS] }, { type: 'null' }] },
-    lot_no: { type: ['string', 'null'] },
-    avg_weight_g: { type: ['integer', 'null'] },
-    count_per_basket: { type: ['integer', 'null'] },
-    mortality: { type: ['integer', 'null'] },
-    basket_count: { type: ['integer', 'null'] },
+    work_type: { type: 'string', enum: [...FORM_TYPES] },
+    work_type_guessed: { type: 'boolean', description: '作業の種類が言われず推定したら true' },
+    lot_no: STR,
+    farm: STR,
+    lane: INT,
+    ma_from: INT,
+    ma_to: INT,
+    basket_count: INT,
+    purpose: enumOrEmpty(PURPOSES, '陸揚げの目的'),
     items: {
       type: 'array',
+      description: '選別のサイズ帯。選別以外は空配列',
       items: {
         type: 'object',
-        properties: {
-          avg_weight_g: { type: ['integer', 'null'] },
-          count_per_basket: { type: ['integer', 'null'] },
-          basket_count: { type: ['integer', 'null'] },
-        },
-        required: ['avg_weight_g', 'count_per_basket', 'basket_count'],
+        properties: { avg_weight_g: INT, count_per_basket: INT, basket_count: INT, basket_type: STR },
+        required: ['avg_weight_g', 'count_per_basket', 'basket_count', 'basket_type'],
         additionalProperties: false,
       },
     },
+    mortality: INT,
+    shell_state: enumOrEmpty(SHELL_STATES, '殻の状態'),
+    meat_quality: enumOrEmpty(MEAT, '身入り'),
+    fouling: { type: 'string', enum: ['あり', 'なし', ''], description: '付着物。不明なら空文字' },
+    workers: INT,
+    duration_min: INT,
+    location_line: INT,
+    location_tier: enumOrEmpty(TIERS, '旧表記の段'),
+    notes: STR,
     missing: { type: 'array', items: { type: 'string' } },
-    notes: { type: ['string', 'null'] },
   },
   required: [
-    'work_type',
-    'location_line',
-    'location_tier',
-    'lot_no',
-    'avg_weight_g',
-    'count_per_basket',
-    'mortality',
-    'basket_count',
-    'items',
-    'missing',
-    'notes',
+    'work_type', 'work_type_guessed', 'lot_no', 'farm', 'lane', 'ma_from', 'ma_to', 'basket_count', 'purpose', 'items',
+    'mortality', 'shell_state', 'meat_quality', 'fouling', 'workers', 'duration_min', 'location_line', 'location_tier', 'notes', 'missing',
   ],
   additionalProperties: false,
 } as const;
 
-// 「言っていない項目」を確認に出す対象（notes は対象外）
-const CHECK_FIELDS = [
-  'location_line',
-  'location_tier',
-  'lot_no',
-  'avg_weight_g',
-  'count_per_basket',
-  'mortality',
-  'basket_count',
-] as const;
-
 const systemPrompt =
   extractPrompt +
-  '\n\n---\n以下は用語集（config/glossary.yaml）。作業名の正規化と用語の解釈に使う。\n```yaml\n' +
+  '\n\n---\n以下は用語集（config/glossary.yaml）。作業名の正規化と用語の解釈、数値の妥当範囲（plausible_ranges）に使う。\n```yaml\n' +
   glossaryYaml +
   '\n```\n';
 
 export const voysy = new Hono<{ Bindings: Bindings }>();
 
-// POST /api/voysy/extract  { text } → 構造化 JSON
+// POST /api/voysy/extract  { text } → 作業別の型に整理した JSON
 voysy.post('/extract', async (c) => {
   const body = await c.req.json<{ text?: unknown }>().catch(() => null);
   const text = typeof body?.text === 'string' ? body.text.trim() : '';
@@ -154,73 +163,95 @@ voysy.post('/extract', async (c) => {
   } catch {
     return c.json({ error: '整理結果を読めませんでした。もう一度お試しください。' }, 502);
   }
-  return c.json(normalize(parsed));
+  return c.json(normalize(parsed, text));
 });
 
-/** モデル出力を検証し、null の項目を missing に足して返す */
-export function normalize(v: unknown): ExtractResult {
+/** モデル出力を検証し、作業の型に合わない項目を落とす */
+export function normalize(v: unknown, rawText = ''): ExtractResult {
   const o = (v && typeof v === 'object' ? v : {}) as Record<string, unknown>;
+  // -1 と空文字は「不明」（スキーマの制約で null を使えないため）
   const int = (x: unknown) => (typeof x === 'number' && Number.isInteger(x) && x >= 0 ? x : null);
   const str = (x: unknown) => (typeof x === 'string' && x.trim() ? x.trim() : null);
-  const workType = (WORK_TYPES as readonly string[]).includes(o.work_type as string)
-    ? (o.work_type as WorkType)
-    : 'その他';
-  const tier = (TIERS as readonly string[]).includes(o.location_tier as string)
-    ? (o.location_tier as ExtractResult['location_tier'])
-    : null;
+  const pick = <T extends readonly string[]>(vals: T, x: unknown): T[number] | null =>
+    (vals as readonly string[]).includes(x as string) ? (x as T[number]) : null;
+  const workType: FormType = pick(FORM_TYPES, o.work_type) ?? 'その他';
+  const guessed = o.work_type_guessed === true;
+
   const rawItems = Array.isArray(o.items) ? (o.items as Record<string, unknown>[]) : [];
-  let items: ExtractItem[] = rawItems
+  const items: ExtractItem[] = rawItems
     .filter((it) => it && typeof it === 'object')
     .map((it) => ({
       avg_weight_g: inRange('avg_weight_g', int(it.avg_weight_g)),
       count_per_basket: inRange('count_per_basket', int(it.count_per_basket)),
       basket_count: inRange('basket_count', int(it.basket_count)),
+      basket_type: normalizeBasketType(str(it.basket_type)),
     }))
     .filter((it) => it.avg_weight_g != null || it.count_per_basket != null || it.basket_count != null);
-  const first = items[0];
-  const avg = first?.avg_weight_g ?? inRange('avg_weight_g', int(o.avg_weight_g));
-  const cnt = first?.count_per_basket ?? inRange('count_per_basket', int(o.count_per_basket));
-  const bsk = first?.basket_count ?? inRange('basket_count', int(o.basket_count));
-  if (items.length === 0 && (avg != null || cnt != null || bsk != null)) {
-    items = [{ avg_weight_g: avg, count_per_basket: cnt, basket_count: bsk }];
-  }
-  const result: ExtractResult = {
-    work_type: workType,
-    location_line: int(o.location_line),
-    location_tier: tier,
-    lot_no: normalizeLot(str(o.lot_no)),
-    avg_weight_g: avg,
-    count_per_basket: cnt,
-    mortality: inRange('mortality', int(o.mortality)),
-    basket_count: bsk,
-    items,
-    missing: Array.isArray(o.missing) ? o.missing.filter((m): m is string => typeof m === 'string') : [],
-    notes: str(o.notes),
-  };
-  // 選別のときは沖出し場所が未確定なので、場所は確認対象にしない（沖出しは別の作業として記録）
-  const check = workType === '選別' ? CHECK_FIELDS.filter((f) => f !== 'location_line' && f !== 'location_tier') : [...CHECK_FIELDS];
-  for (const f of check) {
-    if (result[f] == null && !result.missing.includes(f)) result.missing.push(f);
-  }
-  result.missing = result.missing.filter((m) => (check as readonly string[]).includes(m));
-  return result;
-}
 
-/** ロット番号を R8-K3 の型に正規化。型に合わなければ null（確認に回す） */
-export function normalizeLot(raw: string | null): string | null {
-  if (!raw) return null;
-  let t = raw
-    .replace(/[Ａ-Ｚａ-ｚ０-９－]/g, (c) => String.fromCharCode(c.charCodeAt(0) - 0xfee0))
-    .toUpperCase()
-    .replace(/[\s　]/g, '')
-    .replace(/アール/g, 'R')
-    .replace(/ケー|ケイ/g, 'K')
-    .replace(/[‐‑–—−ー]/g, '-')
-    .replace(/の/g, '-')
-    .replace(/^R(\d{1,2})-?K/, 'R$1-K');
-  const full = /^R(\d{1,2})-?K(\d{1,2})$/.exec(t);
-  if (full) return `R${Number(full[1])}-K${Number(full[2])}`;
-  const kOnly = /^K(\d{1,2})$/.exec(t);
-  if (kOnly) return `${LOT_CURRENT_PREFIX}-K${Number(kOnly[1])}`;
-  return LOT_REGEX.test(t) ? t : null;
+  // notes は確認対象にしない。basket_type は任意の文字項目で聞き間違いの対象にならない
+  const missing = (Array.isArray(o.missing) ? o.missing.filter((m): m is string => typeof m === 'string') : []).filter(
+    (m) => m !== 'notes' && m !== 'basket_type',
+  );
+  if (guessed && !missing.includes('work_type')) missing.push('work_type');
+
+  const base: ExtractResult = {
+    work_type: workType,
+    work_type_guessed: guessed,
+    lot_no: normalizeLot(str(o.lot_no), LOT_CURRENT_PREFIX),
+    farm: normalizeFarm(str(o.farm)),
+    lane: inRange('lane', int(o.lane)),
+    ma_from: inRange('ma', int(o.ma_from)),
+    ma_to: inRange('ma', int(o.ma_to)),
+    basket_count: inRange('basket_count', int(o.basket_count)),
+    purpose: pick(PURPOSES, o.purpose),
+    items,
+    mortality: inRange('mortality', int(o.mortality)),
+    shell_state: pick(SHELL_STATES, o.shell_state),
+    meat_quality: pick(MEAT, o.meat_quality),
+    fouling: o.fouling === 'あり' || o.fouling === true ? true : o.fouling === 'なし' || o.fouling === false ? false : null,
+    workers: inRange('workers', int(o.workers)),
+    duration_min: inRange('duration_min', int(o.duration_min)),
+    location_line: int(o.location_line),
+    location_tier: pick(TIERS, o.location_tier),
+    notes: str(o.notes),
+    missing,
+  };
+  // モデルがロットを読めなかったら、発話から拾う（「R 8の型2」「R 3の計算」）。正規化で型に揃ったら確認は外す
+  if (base.lot_no == null && rawText) base.lot_no = lotFromText(rawText, LOT_CURRENT_PREFIX);
+  if (base.lot_no != null) base.missing = base.missing.filter((m) => m !== 'lot_no');
+  // モデルが場所を落としたら、発話から正規表現で拾う（「ディー魚場5連5件目から12件目」のような崩れにも効く）
+  if ((workType === '沖出し' || workType === '陸揚げ') && rawText) {
+    if (base.basket_count == null) {
+      const bc = basketCountFromText(rawText);
+      if (bc != null) {
+        base.basket_count = inRange('basket_count', bc);
+        if (base.basket_count != null) base.missing = base.missing.filter((m) => m !== 'basket_count');
+      }
+    }
+    const place = parsePlaceFromText(rawText);
+    if (base.farm == null && place.farm) base.farm = place.farm;
+    if (base.lane == null && place.lane != null) base.lane = inRange('lane', place.lane);
+    if (base.ma_from == null && place.ma_from != null) base.ma_from = inRange('ma', place.ma_from);
+    if (base.ma_to == null && place.ma_to != null) base.ma_to = inRange('ma', place.ma_to);
+    for (const f of ['farm', 'lane', 'ma_from', 'ma_to'] as const) {
+      if (base[f] != null) base.missing = base.missing.filter((m) => m !== f);
+    }
+  }
+  if (base.ma_from != null && base.ma_to != null && base.ma_to < base.ma_from) [base.ma_from, base.ma_to] = [base.ma_to, base.ma_from];
+  if (base.ma_from != null && base.ma_to == null) base.ma_to = base.ma_from;
+
+  // 型ごとに不要な項目を落とす
+  if (workType === '選別') {
+    base.farm = null; base.lane = null; base.ma_from = null; base.ma_to = null; base.purpose = null; base.basket_count = null;
+    if (base.items.length === 0) base.items = [{ avg_weight_g: null, count_per_basket: null, basket_count: null, basket_type: null }];
+  } else if (workType === '沖出し') {
+    base.items = []; base.mortality = null; base.shell_state = null; base.meat_quality = null; base.fouling = null;
+    base.workers = null; base.duration_min = null; base.purpose = null;
+  } else if (workType === '陸揚げ') {
+    base.items = []; base.mortality = null; base.shell_state = null; base.meat_quality = null; base.fouling = null;
+    base.workers = null; base.duration_min = null;
+  } else {
+    base.items = [];
+  }
+  return base;
 }

@@ -13,7 +13,7 @@
 | 4 | 0:26–0:50 | Oyscan | PC 画面収録 B1〜B6 | 日本中の海を診る。海域ごとに判定が変わる |
 | 5 | 0:50–1:00 | 船上の手元 | 実写 C1・C3 | 濡れた手、揺れる船。入力できない現実 |
 | 6 | 1:00–1:20 | Voysy 作業セッション | iPhone 画面収録 C2・C4・C6 ＋ 実写 C5 | 喋るだけで区切られる |
-| 7 | 1:20–1:32 | 陸でチェック → 保存 | iPhone 画面収録 C7〜C9 | 確認は陸で。AI が整理し、足りない項目を聞き返す |
+| 7 | 1:20–1:32 | 陸でチェック → 保存 | iPhone 画面収録 C7〜C9 | 確認は陸で。AI が作業ごとの型に整理し、人が確定する |
 | 8 | 1:32–2:05 | AI Oysterman の会話 | iPhone 画面収録 D1〜D4 | 記録と水温を読み、先輩として提案し、予約まで |
 | 9 | 2:05–2:18 | 範囲外と根拠 | iPhone 画面収録 D5・D7 | 分からないことは人につなぐ。根拠が見える |
 | 10 | 2:18–2:38 | つながり | 図 E1 ＋ 静止画 E2 | 3 つは 1 つの記録でつながる。ルール ＋ Claude |
@@ -37,8 +37,8 @@
 | 0:58 | だから、海では喋るだけ。「作業開始」を一回押したら、あとは、作業をしながら話します。 | So at sea, you just talk. Tap “Start work” once, then keep working and talking. |
 | 1:06 | 「次のロット」と言えば、記録が区切られます。「記録終了」で止まります。 | Say “next lot” and the record splits. Say “end recording” and it stops. |
 | 1:13 | 圏外でも消えません。確認は、陸に戻ってから。 | Nothing is lost offline. You review on land. |
-| 1:20 | 陸でチェックを開くと、Claude が発話を、作業、ロット、サイズ帯、斃死に整理します。 | Back on land, Claude turns the speech into work type, lot, size bands and mortality. |
-| 1:26 | 言っていないことは、赤で聞き返す。聞き間違いの数字は、空欄にして確認を求める。 | What you didn't say is asked back in red. A misheard number is left blank for you to confirm. |
+| 1:20 | 陸でチェックを開くと、Claude が発話を、作業ごとの型に整理します。陸揚げなら場所とかご数、選別ならサイズ帯と斃死。 | Back on land, Claude sorts the speech into the form for each job: landing gets place and basket count, grading gets size bands and mortality. |
+| 1:26 | 聞き間違いの数字は、空欄にして確認を求める。確定するのは、人です。 | A misheard number is left blank for you to confirm. A person makes it final. |
 | 1:33 | みっつ目、AI Oysterman。作業の合間に、隣の先輩に聞くように。 | Third, AI Oysterman. Ask it like a senior farmer standing next to you. |
 | 1:39 | 「刃先が伸びてきた。このままでいい？」 | “The shell edges are growing thin. Is it okay to leave them?” |
 | 1:43 | 記録と水温を読んで、答えます。前回の選別から十九日、三十六グラム、一かご四十五個。揺れが足りない合図です。上段だけですか？ | It reads the records and temperature: 19 days since sorting, 36 g, 45 per basket. A sign of too little motion. Only the upper tier? |
@@ -81,11 +81,11 @@
 ### シーン 6　1:00–1:20　Voysy 作業セッション
 - 映像：C2（作業中 0:00、記録 0 件）→ C4（文字が流れ、「次のロット」で記録 1 件に）→ C5（2 ロット目の手元、実写）→ C6（「記録終了」→「2 件を記録しました」）。
 - 編集：C4 は認識文のアップと件数のカウントアップを 2 回に分けて見せる。実写と画面を 3〜4 秒で交互に。
-- 文字：右上に「Voysy — 海で記録する」。喋った文を字幕で出す（例：「R8のK3、選別。30グラム60個入り10カゴ…」）。
+- 文字：右上に「Voysy — 海で記録する」。喋った文を字幕で出す（例：「R8のK3、陸揚げ。D漁場 5レーン 5間目から12間目、10かご…」）。
 
 ### シーン 7　1:20–1:32　陸でチェック
-- 映像：C7（一覧 2 件 →「整理する」）→ C8（確認表、サイズ帯 2 行、赤の「確認」）→ C9（「保存」→ 一覧に「R8-K3 選別 30g×60個×10カゴ／40g×50個×30カゴ」）。
-- 編集：C8 の赤い行を 1 秒ズーム。
+- 映像：C7（一覧 2 件 →「整理する」）→ C8（陸揚げの確認表：D漁場 5レーン 5〜12間・10かご・選別のため。続けて選別の確認表：サイズ帯 2 行とかごの種類・斃死・殻・付着物）→ C9（「保存」→ 一覧に陸揚げと選別の行）。
+- 編集：C8 は陸揚げ 2 秒 → 選別 4 秒。空欄の数字があれば 1 秒ズーム。
 
 ### シーン 8　1:32–2:05　AI Oysterman
 - 映像：D1（待機画面、水温の一行、例文）→ D2（例文タップ → 返答。記録の数字と「上段だけですか？」）→ D3（「上段だけ。下段はまだ締まってる」→ 提案と「この作業を予約する」）→ D4（ボタン → 緑の「✓ Voysy に『…』を予約しました」）。

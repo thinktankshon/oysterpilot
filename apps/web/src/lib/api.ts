@@ -59,6 +59,18 @@ export type RecordRow = {
   mortality: number | null;
   basket_count: number | null;
   raw_text: string;
+  notes: string | null;
+  farm: string | null;
+  lane: number | null;
+  ma_from: number | null;
+  ma_to: number | null;
+  basket_type: string | null;
+  shell_state: string | null;
+  meat_quality: string | null;
+  fouling: number | null;
+  workers: number | null;
+  duration_min: number | null;
+  purpose: string | null;
   source: string;
 };
 
@@ -88,45 +100,104 @@ export type ExtractItem = {
   avg_weight_g: number | null;
   count_per_basket: number | null;
   basket_count: number | null;
+  basket_type: string | null;
 };
 
-/** /api/voysy/extract の結果（docs/01） */
+export const FORM_TYPES = ['選別', '沖出し', '陸揚げ', 'その他'] as const;
+
+/** /api/voysy/extract の結果（作業別の型。docs/01） */
 export type ExtractResult = {
   work_type: string;
+  work_type_guessed: boolean;
+  lot_no: string | null;
+  farm: string | null;
+  lane: number | null;
+  ma_from: number | null;
+  ma_to: number | null;
+  basket_count: number | null;
+  purpose: string | null;
+  items: ExtractItem[];
+  mortality: number | null;
+  shell_state: string | null;
+  meat_quality: string | null;
+  fouling: boolean | null;
+  workers: number | null;
+  duration_min: number | null;
   location_line: number | null;
   location_tier: string | null;
-  lot_no: string | null;
-  avg_weight_g: number | null;
-  count_per_basket: number | null;
-  mortality: number | null;
-  basket_count: number | null;
-  items: ExtractItem[];
-  missing: string[];
   notes: string | null;
+  missing: string[];
 };
 
 /** POST /api/records の本文（1 件） */
-export type RecordInput = Omit<ExtractResult, 'missing' | 'items'> & { raw_text: string };
+export type RecordInput = {
+  recorded_at?: string;
+  work_type: string;
+  lot_no: string | null;
+  location_line: number | null;
+  location_tier: string | null;
+  farm: string | null;
+  lane: number | null;
+  ma_from: number | null;
+  ma_to: number | null;
+  basket_count: number | null;
+  purpose: string | null;
+  avg_weight_g: number | null;
+  count_per_basket: number | null;
+  basket_type: string | null;
+  mortality: number | null;
+  shell_state: string | null;
+  meat_quality: string | null;
+  fouling: boolean | null;
+  workers: number | null;
+  duration_min: number | null;
+  notes: string | null;
+  raw_text: string;
+};
 
-/** 抽出結果を帯ごとの記録に展開する。帯の場所が無ければ全体の場所を使う */
-export function toRecordInputs(r: ExtractResult, rawText: string): RecordInput[] {
-  const base = {
+/** 抽出結果を記録に展開する。選別は帯ごとに 1 件、ほかは 1 件 */
+export function toRecordInputs(r: ExtractResult, rawText: string, recordedAt?: string): RecordInput[] {
+  const common = {
+    ...(recordedAt ? { recorded_at: recordedAt } : {}),
     work_type: r.work_type,
     lot_no: r.lot_no,
-    mortality: r.mortality,
+    location_line: r.location_line,
+    location_tier: r.location_tier,
+    farm: r.farm,
+    lane: r.lane,
+    ma_from: r.ma_from,
+    ma_to: r.ma_to,
+    purpose: r.purpose,
+    shell_state: r.shell_state,
+    meat_quality: r.meat_quality,
+    fouling: r.fouling,
+    workers: r.workers,
+    duration_min: r.duration_min,
     notes: r.notes,
     raw_text: rawText,
   };
-  const items = r.items.length ? r.items : [{ avg_weight_g: r.avg_weight_g, count_per_basket: r.count_per_basket, basket_count: r.basket_count }];
-  return items.map((it, i) => ({
-    ...base,
-    mortality: i === 0 ? r.mortality : null, // 斃死は全体の値なので先頭の帯にだけ付ける
-    location_line: r.location_line,
-    location_tier: r.location_tier,
-    avg_weight_g: it.avg_weight_g,
-    count_per_basket: it.count_per_basket,
-    basket_count: it.basket_count,
-  }));
+  if (r.work_type === '選別') {
+    const items = r.items.length ? r.items : [{ avg_weight_g: null, count_per_basket: null, basket_count: null, basket_type: null }];
+    return items.map((it, i) => ({
+      ...common,
+      mortality: i === 0 ? r.mortality : null, // 斃死は合計なので先頭の帯にだけ付ける
+      avg_weight_g: it.avg_weight_g,
+      count_per_basket: it.count_per_basket,
+      basket_count: it.basket_count,
+      basket_type: it.basket_type,
+    }));
+  }
+  return [{ ...common, mortality: r.mortality, avg_weight_g: null, count_per_basket: null, basket_count: r.basket_count, basket_type: null }];
+}
+
+/** 場所の表示：D漁場 5レーン 5〜12間 ／ 旧表記 3番ライン・上段 */
+export function placeLabel(r: Pick<RecordRow, 'farm' | 'lane' | 'ma_from' | 'ma_to' | 'location_line' | 'location_tier'>): string {
+  if (r.farm || r.lane != null) {
+    const ma = r.ma_from != null ? (r.ma_to != null && r.ma_to !== r.ma_from ? `${r.ma_from}〜${r.ma_to}間` : `${r.ma_from}間`) : '';
+    return [r.farm ? `${r.farm}漁場` : '', r.lane != null ? `${r.lane}レーン` : '', ma].filter(Boolean).join(' ');
+  }
+  if (r.location_line != null) return locationLabel(r);
+  return '';
 }
 
 /** 直近の記録を「同じ発話・同じ時刻」でまとめる（選別の複数帯を 1 行に） */

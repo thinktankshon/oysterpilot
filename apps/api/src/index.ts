@@ -77,6 +77,58 @@ app.get('/records', async (c) => {
   return c.json(results);
 });
 
+// POST /api/records  構造化 JSON ＋ raw_text（1 件）
+app.post('/records', async (c) => {
+  const body = await c.req.json<Partial<RecordRow>>().catch(() => null);
+  if (!body) return c.json({ error: 'invalid json' }, 400);
+  const err = validateRecord(body);
+  if (err) return c.json({ error: err }, 400);
+  const res = await insertRecord(c.env.DB, body, jstNowIso()).run();
+  return c.json({ id: res.meta.last_row_id }, 201);
+});
+
+// GET /api/records/summary?line=3&tier=上段
+app.get('/records/summary', async (c) => {
+  const line = Number(c.req.query('line'));
+  if (!Number.isInteger(line)) return c.json({ error: 'line is required' }, 400);
+  const tier = c.req.query('tier') || null;
+  return c.json(await getLotSummary(c.env.DB, line, tier, todayJst()));
+});
+
+// GET /api/records/locations  記録のある沖出し場所の一覧
+app.get('/records/locations', async (c) => {
+  const { results } = await c.env.DB.prepare(
+    `SELECT location_line, location_tier, COUNT(*) AS n, MAX(recorded_at) AS latest_at
+       FROM records WHERE location_line IS NOT NULL
+      GROUP BY location_line, location_tier ORDER BY location_line, location_tier`,
+  ).all<{ location_line: number; location_tier: string | null; n: number; latest_at: string }>();
+  return c.json(results);
+});
+
+// GET /api/records?line=3&tier=上段&limit=10
+app.get('/records', async (c) => {
+  const line = c.req.query('line');
+  const tier = c.req.query('tier');
+  const limit = Math.min(Number(c.req.query('limit') ?? 10) || 10, 100);
+  const where: string[] = [];
+  const params: (string | number)[] = [];
+  if (line) {
+    where.push('location_line = ?');
+    params.push(Number(line));
+  }
+  if (tier) {
+    where.push('location_tier = ?');
+    params.push(tier);
+  }
+  const sql =
+    'SELECT * FROM records' +
+    (where.length ? ' WHERE ' + where.join(' AND ') : '') +
+    ' ORDER BY recorded_at DESC, id DESC LIMIT ?';
+  params.push(limit);
+  const { results } = await c.env.DB.prepare(sql).bind(...params).all<RecordRow>();
+  return c.json(results);
+});
+
 // POST /api/records  構造化 JSON ＋ raw_text
 app.post('/records', async (c) => {
   const body = await c.req.json<Partial<RecordRow>>().catch(() => null);
@@ -112,41 +164,17 @@ app.post('/records', async (c) => {
   return c.json({ id: res.meta.last_row_id }, 201);
 });
 
-// POST /api/records/bulk  { records: [...], segment_id? } → { ids }  選別の複数サイズ帯を一度に保存
+// POST /api/records/bulk  { records: [...], segment_id? } → { ids }  選別の複数サイズ帯や、1 区切りの複数作業を一度に保存
 app.post('/records/bulk', async (c) => {
   const body = await c.req.json<{ records?: Partial<RecordRow>[]; segment_id?: number }>().catch(() => null);
   if (!body || !Array.isArray(body.records) || body.records.length === 0) return c.json({ error: 'records is required' }, 400);
   if (body.records.length > 20) return c.json({ error: 'too many records (max 20)' }, 400);
-  const num = (v: unknown) => (typeof v === 'number' && Number.isFinite(v) ? v : null);
-  const str = (v: unknown) => (typeof v === 'string' && v.length ? v : null);
   const now = jstNowIso();
-  const stmts = [];
   for (const r of body.records) {
-    if (!r.work_type || !(WORK_TYPES as readonly string[]).includes(r.work_type)) {
-      return c.json({ error: 'work_type is required (選別/分殖/沖出し/陸揚げ/揺らし/移動/その他)' }, 400);
-    }
-    if (!r.raw_text || typeof r.raw_text !== 'string') return c.json({ error: 'raw_text is required' }, 400);
-    stmts.push(
-      c.env.DB.prepare(
-        `INSERT INTO records (recorded_at, work_type, location_line, location_tier, lot_no,
-           avg_weight_g, count_per_basket, mortality, basket_count, raw_text, notes, source)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'voysy')`,
-      ).bind(
-        r.recorded_at ?? now,
-        r.work_type,
-        num(r.location_line),
-        str(r.location_tier),
-        str(r.lot_no),
-        num(r.avg_weight_g),
-        num(r.count_per_basket),
-        num(r.mortality),
-        num(r.basket_count),
-        r.raw_text,
-        str(r.notes),
-      ),
-    );
+    const err = validateRecord(r);
+    if (err) return c.json({ error: err }, 400);
   }
-  const results = await c.env.DB.batch(stmts);
+  const results = await c.env.DB.batch(body.records.map((r) => insertRecord(c.env.DB, r, now)));
   const ids = results.map((x) => Number(x.meta.last_row_id));
   if (typeof body.segment_id === 'number') {
     await c.env.DB.prepare("UPDATE voice_segments SET status = 'done', record_id = ? WHERE id = ?")
@@ -196,6 +224,53 @@ app.onError((err, c) => {
   console.error(err);
   return c.json({ error: 'internal error' }, 500);
 });
+
+function validateRecord(r: Partial<RecordRow>): string | null {
+  if (!r.work_type || !(WORK_TYPES as readonly string[]).includes(r.work_type)) {
+    return 'work_type is required (選別/沖出し/陸揚げ/分殖/揺らし/移動/その他)';
+  }
+  if (!r.raw_text || typeof r.raw_text !== 'string') return 'raw_text is required';
+  if (r.recorded_at != null && !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/.test(String(r.recorded_at))) return 'recorded_at must be ISO8601';
+  return null;
+}
+
+/** records への INSERT（1 件）。作業別の型の列を含む */
+function insertRecord(db: D1Database, r: Partial<RecordRow>, now: string) {
+  const num = (v: unknown) => (typeof v === 'number' && Number.isFinite(v) ? v : null);
+  const str = (v: unknown) => (typeof v === 'string' && v.length ? v : null);
+  const bool = (v: unknown) => (typeof v === 'boolean' ? (v ? 1 : 0) : typeof v === 'number' ? (v ? 1 : 0) : null);
+  return db
+    .prepare(
+      `INSERT INTO records (recorded_at, work_type, location_line, location_tier, lot_no,
+         avg_weight_g, count_per_basket, mortality, basket_count, raw_text, notes,
+         farm, lane, ma_from, ma_to, basket_type, shell_state, meat_quality, fouling, workers, duration_min, purpose, source)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'voysy')`,
+    )
+    .bind(
+      r.recorded_at ?? now,
+      r.work_type,
+      num(r.location_line),
+      str(r.location_tier),
+      str(r.lot_no),
+      num(r.avg_weight_g),
+      num(r.count_per_basket),
+      num(r.mortality),
+      num(r.basket_count),
+      r.raw_text,
+      str(r.notes),
+      str(r.farm),
+      num(r.lane),
+      num(r.ma_from),
+      num(r.ma_to),
+      str(r.basket_type),
+      str(r.shell_state),
+      str(r.meat_quality),
+      bool(r.fouling),
+      num(r.workers),
+      num(r.duration_min),
+      str(r.purpose),
+    );
+}
 
 /** JST の現在時刻を "YYYY-MM-DDTHH:mm:ss+09:00" で返す */
 function jstNowIso(): string {

@@ -6,7 +6,8 @@
     "dev": "vite --host --port 5173",
     "build": "vite build",
     "preview": "vite preview",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "test": "node --test src/lib/audio.test.ts"
   },
   "dependencies": {
     "maplibre-gl": "^6.16.0",

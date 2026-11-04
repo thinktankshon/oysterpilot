@@ -56,6 +56,18 @@ body {
   gap: 2px 10px; padding: 10px 0; border-top: 1px solid var(--line);
 }
 .record-row:first-child { border-top: 0; }
+.record-item { border-top: 1px solid var(--line); }
+.record-item:first-child { border-top: 0; }
+.record-item .record-row { border-top: 0; width: 100%; background: none; border: 0; text-align: left; font: inherit; color: inherit; cursor: pointer; grid-template-columns: auto 1fr auto; grid-template-areas: "date loc work" "nums nums chev"; min-height: 56px; }
+.record-chev { grid-area: chev; color: var(--muted); font-size: 0.8rem; align-self: center; }
+.record-detail { padding: 4px 0 12px; }
+.detail-list { margin: 0; display: grid; gap: 6px; }
+.detail-row { display: grid; grid-template-columns: 6em 1fr; gap: 10px; }
+.detail-row dt { color: var(--muted); }
+.detail-row dd { margin: 0; white-space: pre-wrap; }
+.detail-bands { width: 100%; border-collapse: collapse; margin: 10px 0 4px; font-variant-numeric: tabular-nums; }
+.detail-bands th, .detail-bands td { text-align: left; padding: 6px 4px; border-bottom: 1px solid var(--line); }
+.detail-bands th { color: var(--muted); font-weight: 600; font-size: 0.95rem; }
 .record-date { grid-area: date; color: var(--muted); font-variant-numeric: tabular-nums; }
 .record-loc { grid-area: loc; font-weight: 600; }
 .record-work { grid-area: work; color: var(--brand-2); font-weight: 700; }
@@ -129,6 +141,10 @@ body {
 .raw { margin-top: 12px; color: var(--muted); }
 .raw summary { min-height: 44px; display: flex; align-items: center; cursor: pointer; }
 .raw p { margin: 4px 0 0; white-space: pre-wrap; }
+/* 記録の確認：原文を常時表示（最大 6 行、それ以上はスクロール） */
+.raw-box { margin: 4px 0 8px; padding: 10px 12px; border: 1px solid var(--line); border-radius: 12px; background: var(--card, #fff); }
+.raw-label { color: var(--muted); font-size: 0.95rem; margin-bottom: 4px; }
+.raw-text { margin: 0; white-space: pre-wrap; line-height: 1.5; max-height: calc(1.5em * 6); overflow-y: auto; }
 
 /* トースト */
 .toast {
@@ -239,3 +255,19 @@ body {
 .legend { margin: 4px 0 0; color: var(--muted); font-size: 0.85rem; }
 .legend .dot { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin: 0 4px 0 8px; vertical-align: middle; border: 1px solid #fff; }
 .tile-note { margin: -4px 0 0; color: var(--muted); font-size: 0.82rem; line-height: 1.5; }
+.place-inputs { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.review-table input[type="datetime-local"] { font-family: inherit; }
+.band-wide { grid-column: 1 / -1; }
+
+/* VO-15: 生音声のバックアップ */
+.audio-toggle { display: flex; align-items: center; justify-content: center; gap: 10px; margin: 12px 0 0; min-height: 48px; color: var(--muted); font-size: 1rem; }
+.audio-toggle input { width: 24px; height: 24px; accent-color: var(--brand-2); }
+.audio-state { margin-left: 12px; font-size: 1rem; }
+.audio-state.rec { color: #d33; }
+.small-note { font-size: 0.95rem; margin: 0 0 8px; }
+.audio-list { list-style: none; padding: 0; margin: 0; display: grid; gap: 12px; }
+.audio-player { width: 100%; margin: 6px 0; }
+.audio-file-actions { grid-template-columns: 1fr auto; }
+.seg-audio { margin: 8px 0 2px; }
+.seg-audio .audio-btn { width: 100%; }
+.seg-audio-foot { display: flex; justify-content: space-between; align-items: center; gap: 10px; font-size: 0.95rem; }

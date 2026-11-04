@@ -21,6 +21,18 @@ export type RecordRow = {
   basket_count: number | null;
   raw_text: string;
   notes: string | null;
+  // 作業別の型（移行 0003）
+  farm: string | null;
+  lane: number | null;
+  ma_from: number | null;
+  ma_to: number | null;
+  basket_type: string | null;
+  shell_state: string | null;
+  meat_quality: string | null;
+  fouling: number | null; // 1=あり 0=なし
+  workers: number | null;
+  duration_min: number | null;
+  purpose: string | null;
   source: 'voysy' | 'seed';
   created_at: string;
 };
