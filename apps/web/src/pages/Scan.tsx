@@ -1,6 +1,9 @@
 import { useEffect, useRef, useState } from 'react';
-import { Map as MapLibreMap, Marker, NavigationControl, type MapMouseEvent } from 'maplibre-gl';
+import { Map as MapLibreMap, Marker, NavigationControl, setWorkerUrl, type MapMouseEvent } from 'maplibre-gl';
 import 'maplibre-gl/dist/maplibre-gl.css';
+// MapLibre 6 は Worker を別ファイル（maplibre-gl-worker.mjs）で読む。Vite の資産として URL を確定させないと本番で配信されず、海域の点（GeoJSON 層）が描けない
+import maplibreWorkerUrl from 'maplibre-gl/dist/maplibre-gl-worker.mjs?url';
+setWorkerUrl(maplibreWorkerUrl);
 import { navigate } from '../App';
 import { api, ApiError, formatDay, type ScanAreasResponse, type ScanEvaluate, type ScanEvaluation, type ScanLabels, type ScanReport } from '../lib/api';
 

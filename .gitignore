@@ -10,3 +10,6 @@
 .wrangler/
 dist/
 node_modules/
+
+# デモ動画と素材（提出物。Git には入れない）
+video/

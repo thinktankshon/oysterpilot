@@ -6,10 +6,25 @@
 |---|---|---|
 | GitHub リポジトリ | 公開、`thinktankshon/oysterpilot`、MIT ライセンス | README 日英。秘密情報なし。`config/rules.yaml` は含める |
 | デモ動画 | 3分、16:9、YouTube 限定公開 | 日本語音声＋英語字幕。README 冒頭にリンク |
-| 公開 URL | `https://oysterpilot.pages.dev`（仮） | 共有パスワードを README に書くか、提出フォームに書く |
+| 公開 URL | `https://oysterpilot.oysterpilot-api.workers.dev` | 共有パスワードは提出フォームに書く（README には書かない） |
 | 説明文 | 提出フォーム用に 200字／400字／英語 100 words の3種を README から抜粋して用意 | 形式が分かり次第調整 |
 
 提出形式が公式に示されたら、この表を更新する。
+
+## 提出物の現在地（11/5 更新）
+
+| 提出物 | 状態 | 残り |
+|---|---|---|
+| GitHub リポジトリ | 公開済み（`thinktankshon/oysterpilot`、MIT、README 日英） | 動画リンクとスクリーンショット 3 枚を README に追記。`git grep` で実名・秘密情報の最終確認 |
+| 公開 URL | 稼働中（workers.dev、共有パスワード） | Oyscan の海域の点が本番で出ない不具合（MapLibre の worker ファイルが配信されない）を直して再デプロイ。11/6 の画面収録前に本番 DB を seed に戻す |
+| デモ動画 | 下書き v1 を `video/oysterpilot_draft_v1.mp4` に作成（画面収録 B・C7〜C9・D は実物、実写はカード） | 実写（A1〜A3・C1〜C6・F1〜F2）の差し替え、ナレーション収録、字幕の調整、YouTube 限定公開 |
+| 画面収録の素材 | `video/clips/`（Oyscan PC、Voysy 陸でチェック、AI Oysterman。各 markers.json に操作時刻） | iPhone の作業セッション（C2・C4・C6）は机上で 4 文を喋って撮る（船は不要） |
+| スクリーンショット | `video/shots/`（oyscan / voysy / oysterman） | `docs/assets/` に移して README に貼る |
+| 説明文 | 200 字／400 字／英語 100 words を本書に用意済み | 提出フォームの項目が分かり次第、長さを合わせる |
+
+`video/` は動画と素材の置き場（Git には入れない。`.gitignore` に追加予定）。
+
+主催者の公式な提出形式は未確認（Web 検索では参加者の公開メモしか見つからず。それによると提出物は「プロジェクト概要・3 分のデモ動画・公開リポジトリ」、審査は Impact 30%・Demo 25%・Claude の使い方 25%・深さと実行 20%）。Cerebral Valley のイベントページで確認する。
 
 ## 動画（3分）の台本
 
@@ -26,7 +41,7 @@
 - BGM はフリー素材か無し。権利表記が要るものは使わない。
 - 画面収録は毎日の作業終わりに撮っておく（iPhone：コントロールセンターの画面収録／Mac：Cmd+Shift+5）。撮影当日にアプリが不調でも素材が残る。
 
-## 撮影（11/6 金・中津。予備日なし。荒天なら 11/7 午前に縮小版）
+## 撮影（11/5 は出航できず。11/6 に様子を見て出航、無理なら 11/7 午前、それも無理なら岸壁の縮小版）
 
 > カット表・画面収録の手順・当日の時間割・準備チェックは `07_shooting_plan.md` に詳細版がある。以下は要点。
 
