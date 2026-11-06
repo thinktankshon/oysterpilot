@@ -5,7 +5,7 @@ Oyscan（海を診る）→ Voysy（海で記録する）→ AI Oysterman（海�
 
 [English](#english)
 
-- デモ動画：（11/7 に追記）
+- デモ動画：https://youtu.be/C3iMZNPLu3k（2 分 59 秒。ナレーションは合成音声）
 - 公開 URL：https://oysterpilot.oysterpilot-api.workers.dev （共有パスワードは提出フォームに記載）
 - 作者：高畑 拓弥（株式会社リブル 取締役・経営企画室長）
 - Built with Claude: Japan 2026 提出作品（2026-11-02 〜 11-08）
@@ -168,7 +168,7 @@ MIT License。高畑 拓弥（株式会社リブル）。
 **OysterPilot removes the three walls in front of people starting single‑seed oyster farming, with three tools built on Claude.**
 Oyscan (read the sea) → Voysy (record at sea) → AI Oysterman (learn from the sea)
 
-- Demo video: (to be added)
+- Demo video: https://youtu.be/C3iMZNPLu3k (2:59; narration is synthesized)
 - Live URL: https://oysterpilot.oysterpilot-api.workers.dev (shared password provided in the submission form)
 - Author: Takuya Takahata (Director, Re:Blue Inc.)
 - Entry for Built with Claude: Japan 2026 (Nov 2–8, 2026)

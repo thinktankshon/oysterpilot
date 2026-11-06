@@ -94,7 +94,7 @@
 | プロジェクト名（150 字） | OysterPilot ― 海を診る・海で記録する・海から学ぶ。牡蠣養殖を新しく始める人のための、Claude を組み込んだ 3 つの道具 |
 | 選択したテーマ | 「あなたにしかない深さを」（11/6 確定。自社の数千万貝のデータ・現場の見解・ルール表が根拠） |
 | 公開 GitHub リポジトリ | https://github.com/thinktankshon/oysterpilot |
-| デモ動画（3 分以内・アクセス可） | （YouTube 限定公開の URL。v10 は 2:59） |
+| デモ動画（3 分以内・アクセス可） | https://youtu.be/C3iMZNPLu3k（v10、2:59、限定公開、11/6 アップロード） |
 | 使用した Claude の製品・機能 | 選択肢は CLI／IDE 拡張／Desktop／Cowork／Claude.ai／Claude API／Managed Agents／Agent SDK／その他。チェックするのは **Claude Code Desktop** と **Claude API** の 2 つ（開発は Claude Code の中だけ。API は製品側で Messages API の構造化出力・tool use・プロンプトキャッシュ） |
 | 審査員用リンク（150 字） | https://oysterpilot.oysterpilot-api.workers.dev ＋ 共有パスワード（`DEMO_KEY` の値。ここには書かない） |
 
