@@ -60,7 +60,7 @@
 5. 使ったデータと出典（気象庁 623 周防灘、地理院タイル）。注意書き（海域平均・実績値、水温のみ、安全は県に確認）
 6. 技術構成（Cloudflare Pages/Workers/D1、Claude API、Web Speech API）
 7. セットアップ手順（`wrangler`、secrets、seed）
-8. 1週間で割り切ったこと／今後の展開（推移グラフ、塩分・安全性の診断、全国対応、音声での相談）
+8. 1週間で割り切ったこと／今後の展開（Voysy の起動を画面にさわらない形へ：Siri 起動のネイティブアプリ・IP 電話番号に電話をかける方式、推移グラフ、塩分・安全性の診断、全国対応、音声での相談）
 9. 作者：高畑 拓弥（株式会社リブル 取締役・経営企画室長）。ライセンス MIT
 
 ## 提出前チェック（11/7 夜〜11/8 午前）
@@ -83,3 +83,8 @@
 
 **English (100 words)**
 OysterPilot removes three walls for people starting single-seed oyster farming: not knowing whether a sea will grow oysters, not being able to keep records with wet hands on a boat, and having no one to ask. Oyscan maps 80 coastal areas of Japan and rates mortality risk and growth speed from JMA water temperature and rainfall. Voysy lets farmers keep talking while they work; Claude turns the speech into structured records and asks about missing fields. AI Oysterman reads records and temperature, evaluates ten field rules in code, draws on Re:Blue's practice and cited knowledge, and answers as a companion.
+
+**今後の展開（文字数に余裕があれば添える・11/6 追加）**
+Voysyの起動は、今回はWebの制約で港での1タップが要ります。本実装では、Siriに「Voysy、作業開始」と言うだけで音声の取り込みが始まるネイティブアプリと、IP電話の番号に電話をかけると記録が残り、そのままAI Oystermanと会話もできる電話番号方式を想定しています。画面にさわらずに始められれば、海の上での記録はさらに自然になります。
+
+*English:* Starting Voysy still takes one tap at the dock because of browser limits. In production we envision a native app that Siri launches by voice, and a phone‑number model: call an IP phone number, speak, and the records are kept — the same call can continue as a conversation with AI Oysterman.

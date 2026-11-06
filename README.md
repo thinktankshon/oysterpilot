@@ -145,7 +145,9 @@ pnpm deploy
 
 今後の展開：
 
-- 完全ハンズフリー：言葉だけで録音を開始し、ポケットの中でも認識し続ける（ネイティブアプリの領域）
+- Voysy の起動を「画面にさわらない」形にする。今回は Web の制約で港での 1 タップが要るが、本実装では次の 2 つを想定している
+  - ネイティブアプリ：Siri に「Voysy、作業開始」と言えば音声の取り込みが始まり、ポケットの中でも認識し続ける（最初の 1 タップと画面点灯の制約を外す）
+  - 電話番号：IP 電話の番号に電話をかけると Voysy につながり、喋った内容がそのまま区切りとして残る。同じ電話で AI Oysterman との会話もできる（スマホの画面も、アプリの導入も要らない）
 - 推移グラフ、殻高の記録、塩分・流れ・安全性（貝毒・衛生）の診断、離島を含む全海域、潮流の考慮
 - 音声での相談、作業規律の追加（ルール表と「リブルの見解」を現場ごとに育てる）
 
@@ -201,6 +203,6 @@ See the Japanese section above; the commands are identical (`pnpm i`, local D1 m
 
 ## Trade‑offs and what's next
 
-Scope was cut to temperature‑and‑rainfall diagnosis with nearest‑centroid area matching, a shared password, in‑browser chat history and a fixed cue‑word list. Next: fully hands‑free recording (voice‑triggered start, works in a pocket — a native app), trend charts and shell‑height records, salinity/current/safety diagnostics, remote islands and currents, voice consultation, and growing the rule table and field knowledge per farm.
+Scope was cut to temperature‑and‑rainfall diagnosis with nearest‑centroid area matching, a shared password, in‑browser chat history and a fixed cue‑word list. Next: starting Voysy without touching a screen — in production we envision a native app launched by Siri ("Voysy, start work" begins capture, even in a pocket) and a phone‑number model (call an IP phone number, speak, and the recording is kept; the same call can continue as a conversation with AI Oysterman) — then trend charts and shell‑height records, salinity/current/safety diagnostics, remote islands and currents, voice consultation, and growing the rule table and field knowledge per farm.
 
 MIT License. Takuya Takahata, Re:Blue Inc.
