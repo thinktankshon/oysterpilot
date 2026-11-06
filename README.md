@@ -34,6 +34,8 @@ Oyscan（海を診る）→ Voysy（海で記録する）→ AI Oysterman（海�
 
 ### Oyscan — 日本中の海を診る
 
+![Oyscan：日本の海をクリックすると斃死リスクと成長スピードが出る](docs/assets/shot_oyscan.png)
+
 地図（地理院タイル）に本土沿岸 80 海域の点が出ます。海をクリックすると最寄りの海域を選び、気象庁の海面水温（沿岸海域の平均）と最寄り観測所の雨量から、直近 5 年の指標を即時に出します。
 
 - **斃死リスク 低／中／高**：28℃以上の日数と、6〜10 月に 1 日 50mm 以上降った日数の組み合わせ。高水温と大雨（低塩分）が重なる時期に斃死が増えやすいと報告されていることに基づく目安です。
@@ -44,6 +46,8 @@ Oyscan（海を診る）→ Voysy（海で記録する）→ AI Oysterman（海�
 閾値は全国の分布を見て決めた目安で、`config/rules.yaml` にあります。判定は水温と雨量のみ。公開データを参考にした推察値で、同じ海域でも潮流や潮の当たり方、水深で変わること、塩分・流れ・水深は要現地測定であること、出荷の安全は都道府県の検査結果で確認することを画面に明記しています。
 
 ### Voysy — 海では喋るだけ、確認は陸で
+
+<img src="docs/assets/shot_voysy.png" width="360" alt="Voysy：作業セッション中の画面">
 
 「作業開始」を 1 回押せば、あとは喋りながら作業を続けられます。
 
@@ -57,6 +61,8 @@ Oyscan（海を診る）→ Voysy（海で記録する）→ AI Oysterman（海�
 音声認識はブラウザの Web Speech API（iPhone Safari）。Web アプリの制約で、最初の 1 タップと画面の点灯は必要です。
 
 ### AI Oysterman — 伴走者
+
+<img src="docs/assets/shot_oysterman.png" width="360" alt="AI Oysterman：記録と水温を読んで先輩の口調で答える">
 
 「今日ってどの作業がいいかな？」「最近の水温ってどう？」「死んだ貝が増えてきた」「台風が来る」。場所を選ばせず、記録のある全場所と今日の予約、水温（5 年統計との差・季節区分）を読み、`config/rules.yaml` の 10 ルールをコードで判定したうえで、Claude（`claude-sonnet-5-5`）が先輩の口調で答えます。
 
@@ -178,6 +184,8 @@ Oysters need no feed and no fresh water, and farmed bivalves are among the lowes
 | In one line | Click any coast of Japan and get a diagnosis from water temperature and rainfall | Keep talking while you work; it becomes records | Ask like you would ask a senior farmer next to you |
 | Who / device | Municipal or co‑op staff / PC | Farmers / iPhone | Farmers / phone or PC |
 | Claude's role | Writes the findings from aggregated numbers | Structures speech into record fields and asks about missing ones | Answers as a companion from records, temperature, fired rules and a knowledge base |
+
+<p><img src="docs/assets/shot_oyscan.png" width="600" alt="Oyscan"> <img src="docs/assets/shot_voysy.png" width="180" alt="Voysy"> <img src="docs/assets/shot_oysterman.png" width="180" alt="AI Oysterman"></p>
 
 **Oyscan.** A map of Japan shows 80 coastal sea areas as dots. Click the sea and the nearest area is selected. From five years of JMA sea‑surface temperature (area averages) and daily rainfall at the nearest JMA stations, three indicators appear instantly: **mortality risk (low/mid/high)** from days at or above 28°C combined with heavy‑rain days (≥50 mm) in June–October; **growth speed (good/normal/slow)** from days at 15–25°C, lowered when days below 10°C are many; and annual rainfall, plus the last 7‑day mean against the 5‑year statistics. Claude then writes a 4–6 sentence finding that can be handed to AI Oysterman. Thresholds live in `config/rules.yaml` and were set from the nationwide distribution. The page states that the values are estimates from public data, that conditions differ within an area by current, exposure and depth, and that food‑safety clearance comes from the prefecture.
 
