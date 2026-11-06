@@ -1,6 +1,6 @@
 # OysterPilot
 
-**牡蠣養殖（シングルシード）を新しく始める人の前にある 3 つの壁を、3 つの AI で取り払う。**
+**牡蠣養殖（シングルシード）を新しく始める人の前にある 3 つの壁を、Claude を組み込んだ 3 つの道具で取り払う。**
 Oyscan（海を診る）→ Voysy（海で記録する）→ AI Oysterman（海から学ぶ）
 
 [English](#english)
@@ -157,7 +157,7 @@ MIT License。高畑 拓弥（株式会社リブル）。
 
 # English
 
-**OysterPilot removes the three walls in front of people starting single‑seed oyster farming, with three AI tools.**
+**OysterPilot removes the three walls in front of people starting single‑seed oyster farming, with three tools built on Claude.**
 Oyscan (read the sea) → Voysy (record at sea) → AI Oysterman (learn from the sea)
 
 - Demo video: (to be added)

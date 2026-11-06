@@ -9,7 +9,7 @@
 |---|---|---|---|---|
 | 1 | 0:00–0:08 | 海とライン | 実写 A1 | 現場の空気。タイトルの前の静けさ |
 | 2 | 0:08–0:20 | 3 つの壁 | 実写 A2・A3 ＋ 文字 | 課題を 3 語で |
-| 3 | 0:20–0:26 | タイトル | 文字 ＋ つながり図（薄く） | OysterPilot ＝ 3 つの AI |
+| 3 | 0:20–0:26 | タイトル | 文字 ＋ つながり図（薄く） | OysterPilot ＝ Claude を組み込んだ 3 つの道具 |
 | 4 | 0:26–0:50 | Oyscan | PC 画面収録 B1〜B6 | 日本中の海を診る。海域ごとに判定が変わる |
 | 5 | 0:50–1:00 | 船上の手元 | 実写 C1・C3 | 濡れた手、揺れる船。入力できない現実 |
 | 6 | 1:00–1:20 | Voysy 作業セッション | iPhone 画面収録 C2・C4・C6 ＋ 実写 C5 | 喋るだけで区切られる |
@@ -28,7 +28,7 @@
 | 0:04 | 牡蠣は、餌も淡水も要らない、環境負荷のいちばん低い動物性タンパク質のひとつです。 | Oysters need no feed and no fresh water — one of the lowest‑impact animal proteins. |
 | 0:10 | でも、新しく始める人の前には、三つの壁があります。 | But a newcomer faces three walls. |
 | 0:14 | その海で育つか、判断できない。濡れた手では、記録が残らない。そして、相談する相手がいない。 | Can't judge the sea. Can't keep records with wet hands. No one to ask. |
-| 0:21 | OysterPilot は、この三つの壁を、三つの AI で取り払います。 | OysterPilot removes the three walls with three AI tools. |
+| 0:21 | OysterPilot は、この三つの壁を、Claude を組み込んだ三つの道具で取り払います。 | OysterPilot removes the three walls with three tools built on Claude. |
 | 0:27 | ひとつ目、Oyscan。日本の海を、クリックするだけ。 | First, Oyscan. Just click any coast of Japan. |
 | 0:32 | 気象庁の水温と雨量、五年分から、斃死リスクと成長スピードが、その場で出ます。 | From five years of JMA water temperature and rainfall, mortality risk and growth speed appear instantly. |
 | 0:39 | 北海道は低くて鈍い。九州南部は高くて良い。瀬戸内は、その間。 | Hokkaido: low risk, slow growth. Southern Kyushu: high and good. Seto Inland Sea: in between. |
@@ -67,7 +67,7 @@
 
 ### シーン 3　0:20–0:26　タイトル
 - 映像：白背景にロゴ文字「OysterPilot」。下に小さく「海を診る ／ 海で記録する ／ 海から学ぶ」。背景にうっすら `assets/flow.png`。
-- 文字：「3 つの壁を、3 つの AI で」。
+- 文字：「3 つの壁を、Claude を組み込んだ 3 つの道具で」。
 
 ### シーン 4　0:26–0:50　Oyscan
 - 映像：PC 画面収録。B1（全国の点）→ B2（北海道クリック、低×鈍）→ B3（九州南部、高×良）→ B4（周防灘、中×普、雨量、注釈）→ B5（所見が出る）→ B6（引き継ぎボタン → 緑の吹き出し）。
