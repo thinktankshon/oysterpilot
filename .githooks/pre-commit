@@ -6,9 +6,9 @@ fail=0
 red() { printf '\033[31m%s\033[0m\n' "$1"; }
 
 # 1) 追加行に実在の漁場名・既存システム名（CLAUDE.md の禁止事項）
-#    例外：CLAUDE.md / docs/05 の禁止事項の説明、このフック、スキル・エージェントの説明文
+#    例外：CLAUDE.md の禁止事項の説明、このフック、スキル・エージェントの説明文
 pattern='Oysmart|オイスマート|中津②|那佐|浅川'
-hits=$(git diff --cached -U0 --diff-filter=ACM -- . ':!CLAUDE.md' ':!docs/05_demo_and_submission.md' ':!.githooks/' ':!.claude/' \
+hits=$(git diff --cached -U0 --diff-filter=ACM -- . ':!CLAUDE.md' ':!.githooks/' ':!.claude/' \
   | grep -E '^\+' | grep -vE '^\+\+\+' | grep -E "$pattern" || true)
 if [ -n "$hits" ]; then
   red "✘ 実在の漁場名・既存システム名が含まれています（CLAUDE.md の禁止事項）:"

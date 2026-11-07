@@ -39,7 +39,7 @@ Built with Claude: Japan 2026（11/2 12:00 〜 11/8 20:00 JST。締切は当初 
 ```
 /
   CLAUDE.md
-  README.md                 ← 提出用。docs/05 の骨子に沿って最後に埋める
+  README.md                 ← 提出用（日英）。製品の説明・ルール表・データと出典・セットアップ
   docs/                     ← 要件（正）
   config/rules.yaml         ← AI Oysterman / Oyscan のルールと閾値（コードに埋めない）
   config/glossary.yaml      ← 用語集・作業規律（システムプロンプトに注入）
@@ -52,7 +52,7 @@ Built with Claude: Japan 2026（11/2 12:00 〜 11/8 20:00 JST。締切は当初 
 
 ## 作業の進め方
 
-- 着手順は **Voysy → AI Oysterman → Oyscan**（`docs/06_schedule.md`）。前の画面が実機で動いてから次に進む。
+- 着手順は **Voysy → AI Oysterman → Oyscan**。前の画面が実機で動いてから次に進む。
 - 1日の終わりに必ず **デプロイして実機（iPhone）で触る**。動いた画面は iPhone の画面収録で残す（動画素材・保険）。
 - 各画面に「完成の定義」がある（各 docs の末尾）。それを満たしたら次へ。満たせない見込みなら、同じ docs の「縮退案」に落とす。
 - テストは最小限（抽出の JSON スキーマ検証、ルール評価の単体テスト）。E2E は手動。
