@@ -114,7 +114,7 @@ Oyscan（海を診る）→ Voysy（海で記録する）→ AI Oysterman（海�
 - Claude API：`claude-haiku-5-5`（Voysy の構造化、JSON Schema による構造化出力）、`claude-sonnet-5-5`（AI Oysterman の会話、Oyscan の所見）。予約と範囲外判定は tool use で構造化。知識を含む約 1.5 万トークンのシステムプロンプトはプロンプトキャッシュに載せ、毎回送るのは記録・水温・成立ルールの約 900 トークンだけ。API キーは Workers の secret にのみ置き、フロントに出しません。
 - 共有パスワード：`X-Demo-Key` ヘッダ。審査用の簡易保護です。
 - テスト：ルール判定・場所解決・文字起こしの正規化・録音範囲の単体テスト 24 件（`pnpm test`）。会話評価 25 ケース（デモ・一般論・範囲外・曖昧・断定誘導、`pnpm eval`）。想定質問 153 問の一括検証（`pnpm sweep`）。会話ログ（`chat_logs`）から答えられなかった質問を洗い出して知見を足す。Voysy は読み取り結果と人が直した記録の差分を `pnpm accuracy` で集計し、崩れ方の対応表を育てる。
-- 開発の仕組み（Claude Code）：用語と言い回しのスキル `.claude/skills/oyster-glossary`、ルール表の矛盾を検出するエージェント `.claude/agents/rules-reviewer`、実名・秘密情報を止めるコミット前フック（`.githooks/pre-commit`、Claude Code の `git commit` 直前にも同じ検査）。判断の記録は `docs/99_decisions.md`。
+- 開発の仕組み（Claude Code）：スキル 3 件（用語と言い回し `.claude/skills/oyster-glossary`、本番運用の手順 `prod-ops`、ルール表・用語集・知見を変える手順 `rules-change`）、ルール表の矛盾を検出するエージェント `.claude/agents/rules-reviewer`、実名・秘密情報を止めるコミット前フック（`.githooks/pre-commit`、Claude Code の `git commit` 直前にも同じ検査）。判断の記録は `docs/99_decisions.md`。
 
 ## 6. セットアップ
 
@@ -203,7 +203,7 @@ JMA coastal sea‑surface temperature for 98 areas (daily since 2016, 5‑year s
 
 ## Stack
 
-Vite + React SPA, MapLibre GL JS (lazy‑loaded), Web Speech API; Hono on Cloudflare Workers serving the SPA as static assets; Cloudflare D1; Claude API (`claude-haiku-5-5` for extraction, `claude-sonnet-5-5` for conversation and findings, tool use for reservations, prompt caching for the ~15k‑token knowledge prompt). The API key lives only in Workers secrets. A shared password (`X-Demo-Key`) protects the demo. 13 unit tests for rule evaluation and location resolution, plus a 16‑case conversation evaluation (`pnpm eval`: demo, out‑of‑scope, ambiguity, assertion‑baiting; 16/16). Claude Code tooling in the repo: an `oyster-glossary` skill (terms and phrasing rules), a `rules-reviewer` agent (contradiction check for the rule table) and a pre‑commit hook that blocks real farm names and secrets.
+Vite + React SPA, MapLibre GL JS (lazy‑loaded), Web Speech API; Hono on Cloudflare Workers serving the SPA as static assets; Cloudflare D1; Claude API (`claude-haiku-5-5` for extraction, `claude-sonnet-5-5` for conversation and findings, tool use for reservations, prompt caching for the ~15k‑token knowledge prompt). The API key lives only in Workers secrets. A shared password (`X-Demo-Key`) protects the demo. 13 unit tests for rule evaluation and location resolution, plus a 16‑case conversation evaluation (`pnpm eval`: demo, out‑of‑scope, ambiguity, assertion‑baiting; 16/16). Claude Code tooling in the repo: three skills (`oyster-glossary` for terms and phrasing rules, `prod-ops` for the production runbook, `rules-change` for the procedure when the rule table, glossary or field knowledge changes), a `rules-reviewer` agent (contradiction check for the rule table) and a pre‑commit hook that blocks real farm names and secrets.
 
 ## Setup
 
